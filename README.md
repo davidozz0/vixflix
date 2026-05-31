@@ -80,4 +80,11 @@ vixflix/
 │   └── Dockerfile
 ├── docker-compose.yml
 └── CONTEXT.md                # Glossario dominio
+
+---
+
+Progetto interamente sviluppato via IA con [opencode](https://opencode.ai):
+- **Pianificazione**: sessione `grill-me` per definire il dominio, l'architettura e le scelte progettuali
+- **Sviluppo**: modello `deepseek-v4-pro`
+- **Commit e push automatici** via `gh` CLI
 ```
