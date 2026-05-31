@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names backend,frontend --prefix-colors blue,green",
     "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npx ng serve --open",
+    "dev:frontend": "cd frontend && npx ng serve --host 0.0.0.0 --proxy-config proxy.conf.json --no-open",
     "build": "cd backend && npm run build && cd ../frontend && npx ng build --configuration production"
   },
   "keywords": [],
