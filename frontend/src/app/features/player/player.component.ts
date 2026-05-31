@@ -52,17 +52,28 @@ export class PlayerComponent implements OnInit, OnDestroy {
   }
 
   private onMessage = (event: MessageEvent) => {
-    if (event.origin !== 'https://vixsrc.to') return;
+    console.log('postMessage received', { origin: event.origin, data: event.data });
+    if (event.origin !== 'https://vixsrc.to') {
+      console.log('postMessage IGNORED: wrong origin', event.origin);
+      return;
+    }
     const msg = event.data;
-    if (!msg || msg.type !== 'PLAYER_EVENT') return;
+    if (!msg || msg.type !== 'PLAYER_EVENT') {
+      console.log('postMessage IGNORED: not a PLAYER_EVENT', msg?.type);
+      return;
+    }
     const data = msg.data;
+    console.log('PLAYER_EVENT', data.event, data);
     if (data.event === 'timeupdate') {
       this.watchlist.upsert(this.tmdbId, {
         status: 'watching',
         lastSeason: this.type === 'tv' ? this.season : null,
         lastEpisode: this.type === 'tv' ? this.episode : null,
         resumeTimeSeconds: Math.floor(data.currentTime)
-      }).subscribe();
+      }).subscribe({
+        next: () => console.log('watchlist upsert OK'),
+        error: (err) => console.error('watchlist upsert FAIL', err)
+      });
     }
     if (data.event === 'ended') {
       this.watchlist.upsert(this.tmdbId, {
@@ -70,7 +81,10 @@ export class PlayerComponent implements OnInit, OnDestroy {
         lastSeason: this.type === 'tv' ? this.season : null,
         lastEpisode: this.type === 'tv' ? this.episode : null,
         resumeTimeSeconds: 0
-      }).subscribe();
+      }).subscribe({
+        next: () => console.log('watchlist completed OK'),
+        error: (err) => console.error('watchlist completed FAIL', err)
+      });
     }
   };
 }
