@@ -25,7 +25,7 @@ import { ContinueWatching } from '../../models/continue-watching.model';
       <div *ngIf="continueList.length" style="margin-bottom:1.5rem;">
         <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Continua a guardare</h3>
         <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;">
-          <div *ngFor="let c of continueList" style="cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; position:relative;" class="card" style="overflow:hidden;">
+          <div *ngFor="let c of continueList" style="position:relative; cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; overflow:hidden;" class="card">
             <div [routerLink]="['/watch', c.tmdbId]" [queryParams]="{type: c.type, season: c.lastSeason || 1, episode: c.lastEpisode || 1}">
               <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + c.posterPath" style="width:100%; display:block;" />
               <div *ngIf="!c.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
