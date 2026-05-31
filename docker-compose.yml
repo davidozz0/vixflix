@@ -1,0 +1,28 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-dev-secret}
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - DATABASE_URL=./data/sqlite.db
+    volumes:
+      - sqlite-data:/app/data
+    networks:
+      - vixflix
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - vixflix
+
+volumes:
+  sqlite-data:
+
+networks:
+  vixflix:
+    driver: bridge

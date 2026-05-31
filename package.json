@@ -1,0 +1,22 @@
+{
+  "name": "vixflix",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names backend,frontend --prefix-colors blue,green",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npx ng serve --open",
+    "build": "cd backend && npm run build && cd ../frontend && npx ng build --configuration production"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "concurrently": "^10.0.0"
+  }
+}
