@@ -37,9 +37,9 @@ export class PlayerComponent implements OnInit, OnDestroy {
 
     let url: string;
     if (this.type === 'tv') {
-      url = `https://vixsrc.to/tv/${this.tmdbId}/${this.season}/${this.episode}`;
+      url = `https://vixsrc.to/tv/${this.tmdbId}/${this.season}/${this.episode}?lang=it`;
     } else {
-      url = `https://vixsrc.to/movie/${this.tmdbId}`;
+      url = `https://vixsrc.to/movie/${this.tmdbId}?lang=it`;
     }
     console.log('=== VIXFLIX PLAYER URL ===', url);
     this.src = this.sanitizer.bypassSecurityTrustResourceUrl(url);
