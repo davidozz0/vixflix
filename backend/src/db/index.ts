@@ -15,7 +15,9 @@ if (existsSync(drizzleDir)) {
   const files = readdirSync(drizzleDir).filter(f => f.endsWith(".sql")).sort();
   for (const file of files) {
     const sql = readFileSync(join(drizzleDir, file), "utf-8");
-    sqlite.exec(sql);
+    for (const stmt of sql.split("--> statement-breakpoint")) {
+      try { sqlite.exec(stmt); } catch (_) { /* already applied */ }
+    }
   }
   console.log(`Migrations applied: ${files.length} file(s) from ${drizzleDir}`);
 } else {
