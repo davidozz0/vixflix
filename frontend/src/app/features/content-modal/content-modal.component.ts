@@ -51,12 +51,13 @@ import { ModalData } from '../../models/modal-data.model';
       display: flex; align-items: center; justify-content: center;
       padding: 1rem;
     }
+    .modal-card, .modal-card * { box-sizing: border-box; }
     .modal-card {
       position: relative;
       background: var(--card-bg);
       border-radius: 12px;
       max-width: 520px; width: 100%; max-height: 90vh;
-      overflow-y: auto;
+      overflow-y: auto; overflow-x: hidden;
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
     .close {
@@ -82,6 +83,7 @@ import { ModalData } from '../../models/modal-data.model';
     }
     .info h2 {
       margin: 0 0 0.5rem 0; font-size: 1.4rem; color: var(--text-primary);
+      overflow-wrap: break-word;
     }
     .meta {
       display: flex; gap: 1rem; flex-wrap: wrap; color: var(--text-secondary);
@@ -97,7 +99,7 @@ import { ModalData } from '../../models/modal-data.model';
     }
     .overview {
       color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5;
-      margin: 0 0 1rem 0;
+      margin: 0 0 1rem 0; overflow-wrap: break-word;
     }
     .actions {
       padding: 0 1.5rem 1.5rem;
