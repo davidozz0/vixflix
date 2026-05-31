@@ -145,6 +145,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.watchlistService.getAll().subscribe(list => {
       this.watchlistMap.clear();
       for (const e of list) this.watchlistMap.set(e.tmdbId, e);
+      this.cdr.detectChanges();
     });
   }
 
@@ -197,15 +198,22 @@ export class HomeComponent implements OnInit, OnDestroy {
   addToWatchlist(c: Content, event: Event) {
     event.stopPropagation();
     event.preventDefault();
-    this.watchlistService.upsert(c.tmdbId, {
-      status: 'watching',
-      lastSeason: c.type === 'tv' ? 1 : null,
-      lastEpisode: c.type === 'tv' ? 1 : null,
-      resumeTimeSeconds: 0
-    }).subscribe(() => {
-      this.loadWatchlistMap();
-      this.loadContinueWatching();
-    });
+    if (this.isInWatchlist(c.tmdbId)) {
+      this.watchlistService.remove(c.tmdbId).subscribe(() => {
+        this.loadWatchlistMap();
+        this.loadContinueWatching();
+      });
+    } else {
+      this.watchlistService.upsert(c.tmdbId, {
+        status: 'watching',
+        lastSeason: c.type === 'tv' ? 1 : null,
+        lastEpisode: c.type === 'tv' ? 1 : null,
+        resumeTimeSeconds: 0
+      }).subscribe(() => {
+        this.loadWatchlistMap();
+        this.loadContinueWatching();
+      });
+    }
   }
 
   removeContinue(c: ContinueWatching, event: Event) {
