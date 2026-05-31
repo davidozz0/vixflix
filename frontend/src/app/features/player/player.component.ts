@@ -35,35 +35,33 @@ export class PlayerComponent implements OnInit, OnDestroy {
     this.episode = Number(this.route.snapshot.queryParamMap.get('episode')) || 1;
     console.log('Player init', { tmdbId: this.tmdbId, type: this.type, season: this.season, episode: this.episode });
 
+    this.loadPlayer();
+
     this.watchlist.getAll().subscribe({
       next: (list) => {
         const wl = list.find(e => e.tmdbId === this.tmdbId);
-        const resumeSeconds = wl?.resumeTimeSeconds ?? 0;
-        let url: string;
-        if (this.type === 'tv') {
-          url = `https://vixsrc.to/tv/${this.tmdbId}/${this.season}/${this.episode}?lang=it&autoplay=true`;
-        } else {
-          url = `https://vixsrc.to/movie/${this.tmdbId}?lang=it&autoplay=true`;
+        if (wl && wl.resumeTimeSeconds > 0) {
+          this.loadPlayer(wl.resumeTimeSeconds);
         }
-        if (resumeSeconds > 0) {
-          url += `&startAt=${resumeSeconds}`;
-        }
-        console.log('=== VIXFLIX PLAYER URL ===', url);
-        this.src = this.sanitizer.bypassSecurityTrustResourceUrl(url);
       },
-      error: () => {
-        let url: string;
-        if (this.type === 'tv') {
-          url = `https://vixsrc.to/tv/${this.tmdbId}/${this.season}/${this.episode}?lang=it&autoplay=true`;
-        } else {
-          url = `https://vixsrc.to/movie/${this.tmdbId}?lang=it&autoplay=true`;
-        }
-        console.log('=== VIXFLIX PLAYER URL (no resume) ===', url);
-        this.src = this.sanitizer.bypassSecurityTrustResourceUrl(url);
-      }
+      error: () => { /* no-op, already loaded */ }
     });
 
     window.addEventListener('message', this.onMessage);
+  }
+
+  private loadPlayer(startAt = 0) {
+    let url: string;
+    if (this.type === 'tv') {
+      url = `https://vixsrc.to/tv/${this.tmdbId}/${this.season}/${this.episode}?lang=it&autoplay=true`;
+    } else {
+      url = `https://vixsrc.to/movie/${this.tmdbId}?lang=it&autoplay=true`;
+    }
+    if (startAt > 0) {
+      url += `&startAt=${startAt}`;
+    }
+    console.log('=== VIXFLIX PLAYER URL ===', url);
+    this.src = this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
 
   ngOnDestroy() {
