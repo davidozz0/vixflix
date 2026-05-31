@@ -62,6 +62,16 @@ export class PlayerComponent implements OnInit, OnDestroy {
     }
     console.log('=== VIXFLIX PLAYER URL ===', url);
     this.src = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+
+    this.watchlist.upsert(this.tmdbId, {
+      status: 'watching',
+      lastSeason: this.type === 'tv' ? this.season : null,
+      lastEpisode: this.type === 'tv' ? this.episode : null,
+      resumeTimeSeconds: 0
+    }).subscribe({
+      next: () => console.log('watchlist saved on open'),
+      error: (err) => console.error('watchlist save failed', err.status)
+    });
   }
 
   ngOnDestroy() {
