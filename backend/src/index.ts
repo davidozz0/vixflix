@@ -5,7 +5,7 @@ import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { db } from "./db/index.js";
 import { profiles, watchlist } from "./db/schema.js";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 
 dotenv.config();
 
@@ -244,6 +244,60 @@ app.get("/api/watchlist/continue", auth, async (req: AuthRequest, res) => {
       })
     );
     res.json(results.filter(Boolean));
+  } catch (e: any) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+app.get("/api/watchlist/recommended", auth, async (req: AuthRequest, res) => {
+  try {
+    const profileId = req.profileId!;
+    const recent = db.select().from(watchlist)
+      .where(and(
+        eq(watchlist.profileId, profileId),
+        inArray(watchlist.status, ["watched", "watching"]),
+      ))
+      .orderBy(desc(watchlist.updatedAt))
+      .limit(5)
+      .all();
+
+    if (recent.length === 0) return res.json([]);
+
+    const watchlistIds = new Set(
+      db.select({ tmdbId: watchlist.tmdbId }).from(watchlist)
+        .where(eq(watchlist.profileId, profileId))
+        .all().map(r => r.tmdbId)
+    );
+
+    const freq = new Map<number, { count: number; title: string; posterPath: string | null; type: string }>();
+
+    for (const entry of recent) {
+      const type = entry.lastEpisode ? "tv" : "movie";
+      try {
+        const data = await tmdb(`/${type}/${entry.tmdbId}/recommendations`, {});
+        for (const r of (data.results || [])) {
+          if (watchlistIds.has(r.id)) continue;
+          const existing = freq.get(r.id);
+          if (existing) {
+            existing.count++;
+          } else {
+            freq.set(r.id, {
+              count: 1,
+              title: r.title || r.name,
+              posterPath: r.poster_path,
+              type: r.title ? "movie" : "tv",
+            });
+          }
+        }
+      } catch { /* skip failed */ }
+    }
+
+    const sorted = Array.from(freq.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 20)
+      .map(([tmdbId, v]) => ({ tmdbId, ...v }));
+
+    res.json(sorted);
   } catch (e: any) {
     res.status(502).json({ error: e.message });
   }

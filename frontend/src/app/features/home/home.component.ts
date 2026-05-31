@@ -11,6 +11,7 @@ import { ProfileService } from '../../core/services/profile.service';
 import { Content } from '../../models/content.model';
 import { ContinueWatching } from '../../models/continue-watching.model';
 import { WatchlistEntry } from '../../models/watchlist.model';
+import { RecommendedContent } from '../../models/recommended-content.model';
 import { ContentModalComponent } from '../content-modal/content-modal.component';
 
 @Component({
@@ -39,6 +40,17 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
               <div *ngIf="c.lastEpisode" style="font-size:0.7rem; padding:0 0.5rem 0.5rem 0.5rem; color:var(--text-secondary);">S{{ c.lastSeason }}E{{ c.lastEpisode }}</div>
             </div>
             <button (click)="removeContinue(c, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-size:14px; line-height:1;">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="recommended.length" style="margin-bottom:1.5rem;">
+        <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Consigliati per te</h3>
+        <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;">
+          <div *ngFor="let r of recommended" [routerLink]="['/watch', r.tmdbId]" [queryParams]="{type: r.type}" style="cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; overflow:hidden;" class="card">
+            <img *ngIf="r.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + r.posterPath" style="width:100%; display:block;" />
+            <div *ngIf="!r.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
+            <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.title }}</div>
           </div>
         </div>
       </div>
@@ -76,6 +88,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   private watchlistMap = new Map<number, WatchlistEntry>();
   contents: Content[] = [];
   continueList: ContinueWatching[] = [];
+  recommended: RecommendedContent[] = [];
   type: 'movie' | 'tv' = 'movie';
   query = '';
   get isLoggedIn(): boolean { return !!this.profileService.getToken(); }
@@ -123,6 +136,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     });
     this.loadWatchlistMap();
     this.loadContinueWatching();
+    this.loadRecommended();
     this.loadTrending();
   }
 
@@ -147,6 +161,13 @@ export class HomeComponent implements OnInit, OnDestroy {
   loadContinueWatching() {
     this.watchlistService.continueWatching().subscribe(list => {
       this.continueList = list;
+      this.cdr.detectChanges();
+    });
+  }
+
+  loadRecommended() {
+    this.watchlistService.getRecommended().subscribe(list => {
+      this.recommended = list;
       this.cdr.detectChanges();
     });
   }
@@ -226,6 +247,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       }).subscribe(() => {
         this.loadWatchlistMap();
         this.loadContinueWatching();
+        this.loadRecommended();
       });
     }
   }

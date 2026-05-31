@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { WatchlistEntry, WatchStatus } from '../../models/watchlist.model';
 import { ContinueWatching } from '../../models/continue-watching.model';
+import { RecommendedContent } from '../../models/recommended-content.model';
 import { ProfileService } from './profile.service';
 import { environment } from '../../../environments/environment';
 
@@ -23,6 +24,10 @@ export class WatchlistService {
 
   continueWatching(): Observable<ContinueWatching[]> {
     return this.http.get<ContinueWatching[]>(`${API_URL}/watchlist/continue`, { headers: this.authHeaders() });
+  }
+
+  getRecommended(): Observable<RecommendedContent[]> {
+    return this.http.get<RecommendedContent[]>(`${API_URL}/watchlist/recommended`, { headers: this.authHeaders() });
   }
 
   upsert(tmdbId: number, payload: {
