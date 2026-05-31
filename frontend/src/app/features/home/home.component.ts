@@ -1,17 +1,20 @@
 import { Component, inject, OnInit, OnDestroy, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Subject, Subscription, debounceTime, distinctUntilChanged, filter } from 'rxjs';
+import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
 import { ContentService } from '../../core/services/content.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
+import { ModalService } from '../../core/services/modal.service';
 import { Content } from '../../models/content.model';
 import { ContinueWatching } from '../../models/continue-watching.model';
+import { WatchlistEntry } from '../../models/watchlist.model';
+import { ContentModalComponent } from '../content-modal/content-modal.component';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, ContentModalComponent],
   template: `
     <div class="page" style="padding:1rem;">
       <div style="margin-bottom:1rem;">
@@ -34,8 +37,8 @@ import { ContinueWatching } from '../../models/continue-watching.model';
       </div>
 
       <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:1rem;">
-        <div *ngFor="let c of contents" style="position:relative; overflow:hidden;" class="card">
-          <div [routerLink]="['/watch', c.tmdbId]" [queryParams]="{type: c.type}" style="cursor:pointer;">
+        <div *ngFor="let c of contents" style="position:relative; overflow:hidden; cursor:pointer;" class="card">
+          <div (click)="onCardClick(c)">
             <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w300' + c.posterPath" style="width:100%; display:block;" />
             <div *ngIf="!c.posterPath" style="width:100%; aspect-ratio:2/3; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
             <div style="font-size:0.9rem; padding:0.5rem; color:var(--text-primary);">{{ c.title }}</div>
@@ -45,16 +48,20 @@ import { ContinueWatching } from '../../models/continue-watching.model';
       </div>
       <div *ngIf="isLoading" style="text-align:center; padding:1rem; color:var(--text-secondary);">Caricamento...</div>
     </div>
+    <app-content-modal></app-content-modal>
   `
 })
 export class HomeComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private contentService = inject(ContentService);
   private watchlistService = inject(WatchlistService);
+  private modalService = inject(ModalService);
   private cdr = inject(ChangeDetectorRef);
   private search$ = new Subject<string>();
   private searchSub: Subscription;
   private queryParamsSub!: Subscription;
+  private watchlistMap = new Map<number, WatchlistEntry>();
   contents: Content[] = [];
   continueList: ContinueWatching[] = [];
   type: 'movie' | 'tv' = 'movie';
@@ -101,6 +108,7 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.loadTrending();
       }
     });
+    this.loadWatchlistMap();
     this.loadContinueWatching();
     this.loadTrending();
   }
@@ -128,6 +136,32 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.continueList = list;
       this.cdr.detectChanges();
     });
+  }
+
+  loadWatchlistMap() {
+    this.watchlistService.getAll().subscribe(list => {
+      this.watchlistMap.clear();
+      for (const e of list) this.watchlistMap.set(e.tmdbId, e);
+    });
+  }
+
+  onCardClick(c: Content) {
+    const wl = this.watchlistMap.get(c.tmdbId);
+    if (wl && wl.status === 'watching') {
+      this.router.navigate(['/watch', c.tmdbId], {
+        queryParams: {
+          type: c.type,
+          season: wl.lastSeason ?? undefined,
+          episode: wl.lastEpisode ?? undefined,
+        }
+      });
+    } else {
+      this.modalService.open({
+        tmdbId: c.tmdbId,
+        type: c.type,
+        status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
+      });
+    }
   }
 
   onQueryChange(value: string) {
@@ -162,6 +196,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       lastEpisode: c.type === 'tv' ? 1 : null,
       resumeTimeSeconds: 0
     }).subscribe(() => {
+      this.loadWatchlistMap();
       this.loadContinueWatching();
     });
   }
@@ -171,6 +206,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     event.preventDefault();
     if (!confirm(`Rimuovere "${c.title}" dalla lista?`)) return;
     this.watchlistService.remove(c.tmdbId).subscribe(() => {
+      this.loadWatchlistMap();
       this.loadContinueWatching();
     });
   }
