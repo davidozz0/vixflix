@@ -62,6 +62,29 @@ docker build -t vixflix-backend ./backend
 docker build -t vixflix-frontend ./frontend
 ```
 
+## Deploy su Ubuntu (senza Docker)
+
+```bash
+# Prerequisito: Node.js 22+
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Clona e installa
+git clone https://github.com/davidozz0/vixflix.git
+cd vixflix
+npm install && cd backend && npm install && cd ../frontend && npm install && cd ..
+
+# Configura
+cp backend/.env.example backend/.env
+nano backend/.env   # inserisci TMDB_API_KEY e JWT_SECRET
+
+# Avvia
+chmod +x start.sh
+./start.sh
+```
+
+L'app sarà accessibile su `http://<ip-server>:4200`. Assicurati che la porta 4200 sia aperta: `sudo ufw allow 4200`.
+
 ## Struttura
 
 ```
