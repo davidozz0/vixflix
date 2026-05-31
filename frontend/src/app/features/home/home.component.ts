@@ -144,7 +144,9 @@ export class HomeComponent implements OnInit, OnDestroy {
   loadWatchlistMap() {
     this.watchlistService.getAll().subscribe(list => {
       this.watchlistMap.clear();
-      for (const e of list) this.watchlistMap.set(e.tmdbId, e);
+      for (const e of list) {
+        if (e.status !== 'unwatched') this.watchlistMap.set(e.tmdbId, e);
+      }
       this.cdr.detectChanges();
     });
   }
