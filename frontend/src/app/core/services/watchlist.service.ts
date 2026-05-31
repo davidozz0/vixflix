@@ -35,6 +35,11 @@ export class WatchlistService {
   }
 
   remove(tmdbId: number): Observable<{ ok: boolean }> {
-    return this.http.put<{ ok: boolean }>(`${API_URL}/watchlist/${tmdbId}`, { status: 'unwatched' }, { headers: this.authHeaders() });
+    return this.http.put<{ ok: boolean }>(`${API_URL}/watchlist/${tmdbId}`, {
+      status: 'unwatched',
+      lastSeason: null,
+      lastEpisode: null,
+      resumeTimeSeconds: 0
+    }, { headers: this.authHeaders() });
   }
 }
