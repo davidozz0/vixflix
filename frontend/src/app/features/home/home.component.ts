@@ -43,7 +43,10 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
             <div *ngIf="!c.posterPath" style="width:100%; aspect-ratio:2/3; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
             <div style="font-size:0.9rem; padding:0.5rem; color:var(--text-primary);">{{ c.title }}</div>
           </div>
-          <button (click)="addToWatchlist(c, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:16px; line-height:1;">+</button>
+          <button (click)="addToWatchlist(c, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;"
+                  [style.background]="isInWatchlist(c.tmdbId) ? 'rgba(76,175,80,0.85)' : 'rgba(0,0,0,0.7)'">
+            {{ isInWatchlist(c.tmdbId) ? '✓' : '+' }}
+          </button>
         </div>
       </div>
       <div *ngIf="isLoading" style="text-align:center; padding:1rem; color:var(--text-secondary);">Caricamento...</div>
@@ -185,6 +188,10 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (docHeight <= viewportHeight) {
       this.loadTrending();
     }
+  }
+
+  isInWatchlist(tmdbId: number): boolean {
+    return this.watchlistMap.has(tmdbId);
   }
 
   addToWatchlist(c: Content, event: Event) {
