@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -51,6 +51,7 @@ import { ContinueWatching } from '../../models/continue-watching.model';
 export class HomeComponent implements OnInit, OnDestroy {
   private contentService = inject(ContentService);
   private watchlistService = inject(WatchlistService);
+  private cdr = inject(ChangeDetectorRef);
   private search$ = new Subject<string>();
   private searchSub: Subscription;
   contents: Content[] = [];
@@ -74,6 +75,7 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.contentService.search(q, this.page).subscribe(data => {
           this.contents = data.results;
           this.isLoading = false;
+          this.cdr.detectChanges();
         });
       } else {
         this.isSearching = false;
@@ -102,6 +104,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.page++;
       this.hasMore = data.results.length > 0;
       this.isLoading = false;
+      this.cdr.detectChanges();
       this.checkFillViewport();
     });
   }
@@ -109,6 +112,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   loadContinueWatching() {
     this.watchlistService.continueWatching().subscribe(list => {
       this.continueList = list;
+      this.cdr.detectChanges();
     });
   }
 
