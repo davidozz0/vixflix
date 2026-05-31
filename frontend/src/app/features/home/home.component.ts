@@ -6,6 +6,7 @@ import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs'
 import { ContentService } from '../../core/services/content.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
 import { ModalService } from '../../core/services/modal.service';
+import { DialogService } from '../../core/services/dialog.service';
 import { Content } from '../../models/content.model';
 import { ContinueWatching } from '../../models/continue-watching.model';
 import { WatchlistEntry } from '../../models/watchlist.model';
@@ -60,6 +61,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   private contentService = inject(ContentService);
   private watchlistService = inject(WatchlistService);
   private modalService = inject(ModalService);
+  private dialogService = inject(DialogService);
   private cdr = inject(ChangeDetectorRef);
   private search$ = new Subject<string>();
   private searchSub: Subscription;
@@ -197,10 +199,12 @@ export class HomeComponent implements OnInit, OnDestroy {
     return this.watchlistMap.has(tmdbId);
   }
 
-  addToWatchlist(c: Content, event: Event) {
+  async addToWatchlist(c: Content, event: Event) {
     event.stopPropagation();
     event.preventDefault();
     if (this.isInWatchlist(c.tmdbId)) {
+      const ok = await this.dialogService.confirm(`Rimuovere "${c.title}" dalla watchlist?`);
+      if (!ok) return;
       this.watchlistService.remove(c.tmdbId).subscribe(() => {
         this.loadWatchlistMap();
         this.loadContinueWatching();
@@ -218,10 +222,11 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
   }
 
-  removeContinue(c: ContinueWatching, event: Event) {
+  async removeContinue(c: ContinueWatching, event: Event) {
     event.stopPropagation();
     event.preventDefault();
-    if (!confirm(`Rimuovere "${c.title}" dalla lista?`)) return;
+    const ok = await this.dialogService.confirm(`Rimuovere "${c.title}" dalla lista?`);
+    if (!ok) return;
     this.watchlistService.remove(c.tmdbId).subscribe(() => {
       this.loadWatchlistMap();
       this.loadContinueWatching();
