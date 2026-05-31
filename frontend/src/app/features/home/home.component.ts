@@ -25,11 +25,14 @@ import { ContinueWatching } from '../../models/continue-watching.model';
       <div *ngIf="continueList.length" style="margin-bottom:1.5rem;">
         <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Continua a guardare</h3>
         <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;">
-          <div *ngFor="let c of continueList" [routerLink]="['/watch', c.tmdbId]" [queryParams]="{type: c.type, season: c.lastSeason || 1, episode: c.lastEpisode || 1}" style="cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0;" class="card" style="overflow:hidden;">
-            <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + c.posterPath" style="width:100%; display:block;" />
-            <div *ngIf="!c.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
-            <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.title }}</div>
-            <div *ngIf="c.lastEpisode" style="font-size:0.7rem; padding:0 0.5rem 0.5rem 0.5rem; color:var(--text-secondary);">S{{ c.lastSeason }}E{{ c.lastEpisode }}</div>
+          <div *ngFor="let c of continueList" style="cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; position:relative;" class="card" style="overflow:hidden;">
+            <div [routerLink]="['/watch', c.tmdbId]" [queryParams]="{type: c.type, season: c.lastSeason || 1, episode: c.lastEpisode || 1}">
+              <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + c.posterPath" style="width:100%; display:block;" />
+              <div *ngIf="!c.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
+              <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.title }}</div>
+              <div *ngIf="c.lastEpisode" style="font-size:0.7rem; padding:0 0.5rem 0.5rem 0.5rem; color:var(--text-secondary);">S{{ c.lastSeason }}E{{ c.lastEpisode }}</div>
+            </div>
+            <button (click)="removeContinue(c, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-size:14px; line-height:1;">✕</button>
           </div>
         </div>
       </div>
@@ -157,6 +160,15 @@ export class HomeComponent implements OnInit, OnDestroy {
       lastEpisode: c.type === 'tv' ? 1 : null,
       resumeTimeSeconds: 0
     }).subscribe(() => {
+      this.loadContinueWatching();
+    });
+  }
+
+  removeContinue(c: ContinueWatching, event: Event) {
+    event.stopPropagation();
+    event.preventDefault();
+    if (!confirm(`Rimuovere "${c.title}" dalla lista?`)) return;
+    this.watchlistService.remove(c.tmdbId).subscribe(() => {
       this.loadContinueWatching();
     });
   }

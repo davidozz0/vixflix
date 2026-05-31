@@ -33,4 +33,8 @@ export class WatchlistService {
   }): Observable<{ ok: boolean }> {
     return this.http.put<{ ok: boolean }>(`${API_URL}/watchlist/${tmdbId}`, payload, { headers: this.authHeaders() });
   }
+
+  remove(tmdbId: number): Observable<{ ok: boolean }> {
+    return this.http.put<{ ok: boolean }>(`${API_URL}/watchlist/${tmdbId}`, { status: 'unwatched' }, { headers: this.authHeaders() });
+  }
 }
