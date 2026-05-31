@@ -1,1 +1,70 @@
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f0f0f0;
+  --text-primary: #111111;
+  --text-secondary: #555555;
+  --accent: #e50914;
+  --card-bg: #ffffff;
+  --border: #cccccc;
+  --pill-bg: #e0e0e0;
+  --pill-text: #333333;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #000000;
+  --bg-secondary: #111111;
+  --text-primary: #ffffff;
+  --text-secondary: #aaaaaa;
+  --accent: #e50914;
+  --card-bg: #1a1a1a;
+  --border: #333333;
+  --pill-bg: #333333;
+  --pill-text: #ffffff;
+}
+
+body {
+  margin: 0;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.page {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+.card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.pill {
+  background-color: var(--pill-bg);
+  color: var(--pill-text);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  display: inline-block;
+  margin-right: 0.5rem;
+}
+
+.btn {
+  background-color: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.btn.secondary {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
 .hide-scroll::-webkit-scrollbar { display: none; }
