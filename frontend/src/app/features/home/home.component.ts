@@ -35,10 +35,13 @@ import { ContinueWatching } from '../../models/continue-watching.model';
       </div>
 
       <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:1rem;">
-        <div *ngFor="let c of contents" [routerLink]="['/watch', c.tmdbId]" [queryParams]="{type: c.type}" style="cursor:pointer; overflow:hidden;" class="card">
-          <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w300' + c.posterPath" style="width:100%; display:block;" />
-          <div *ngIf="!c.posterPath" style="width:100%; aspect-ratio:2/3; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
-          <div style="font-size:0.9rem; padding:0.5rem; color:var(--text-primary);">{{ c.title }}</div>
+        <div *ngFor="let c of contents" style="position:relative; overflow:hidden;" class="card">
+          <div [routerLink]="['/watch', c.tmdbId]" [queryParams]="{type: c.type}" style="cursor:pointer;">
+            <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w300' + c.posterPath" style="width:100%; display:block;" />
+            <div *ngIf="!c.posterPath" style="width:100%; aspect-ratio:2/3; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
+            <div style="font-size:0.9rem; padding:0.5rem; color:var(--text-primary);">{{ c.title }}</div>
+          </div>
+          <button (click)="addToWatchlist(c, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:16px; line-height:1;">+</button>
         </div>
       </div>
       <div *ngIf="isLoading" style="text-align:center; padding:1rem; color:var(--text-secondary);">Caricamento...</div>
@@ -139,5 +142,18 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (docHeight <= viewportHeight) {
       this.loadTrending();
     }
+  }
+
+  addToWatchlist(c: Content, event: Event) {
+    event.stopPropagation();
+    event.preventDefault();
+    this.watchlistService.upsert(c.tmdbId, {
+      status: 'watching',
+      lastSeason: c.type === 'tv' ? 1 : null,
+      lastEpisode: c.type === 'tv' ? 1 : null,
+      resumeTimeSeconds: 0
+    }).subscribe(() => {
+      this.loadContinueWatching();
+    });
   }
 }
