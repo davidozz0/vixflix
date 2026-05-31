@@ -5,7 +5,7 @@ import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { db } from "./db/index.js";
 import { profiles, watchlist } from "./db/schema.js";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 dotenv.config();
 
@@ -214,6 +214,38 @@ app.put("/api/watchlist/:tmdbId", auth, (req: AuthRequest, res) => {
       .values({ profileId, tmdbId, status, lastSeason, lastEpisode, resumeTimeSeconds: resumeTimeSeconds ?? 0 })
       .run();
     res.json({ ok: true, created: true });
+  }
+});
+
+app.get("/api/watchlist/continue", auth, async (req: AuthRequest, res) => {
+  try {
+    const profileId = req.profileId!;
+    const entries = db.select().from(watchlist)
+      .where(and(eq(watchlist.profileId, profileId), eq(watchlist.status, "watching")))
+      .orderBy(desc(watchlist.updatedAt))
+      .all();
+    const results = await Promise.all(
+      entries.map(async (e) => {
+        try {
+          const type = e.lastEpisode ? "tv" : "movie";
+          const data = await tmdb(`/${type}/${e.tmdbId}`, {});
+          return {
+            tmdbId: e.tmdbId,
+            title: data.title || data.name,
+            posterPath: data.poster_path,
+            type,
+            lastSeason: e.lastSeason,
+            lastEpisode: e.lastEpisode,
+            resumeTimeSeconds: e.resumeTimeSeconds,
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+    res.json(results.filter(Boolean));
+  } catch (e: any) {
+    res.status(502).json({ error: e.message });
   }
 });
 

@@ -4,7 +4,9 @@ import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
 import { ContentService } from '../../core/services/content.service';
+import { WatchlistService } from '../../core/services/watchlist.service';
 import { Content } from '../../models/content.model';
+import { ContinueWatching } from '../../models/continue-watching.model';
 
 @Component({
   selector: 'app-home',
@@ -19,6 +21,19 @@ import { Content } from '../../models/content.model';
           <option value="tv">Serie TV</option>
         </select>
       </div>
+
+      <div *ngIf="continueList.length" style="margin-bottom:1.5rem;">
+        <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Continua a guardare</h3>
+        <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;">
+          <div *ngFor="let c of continueList" [routerLink]="['/watch', c.tmdbId]" [queryParams]="{type: c.type, season: c.lastSeason || 1, episode: c.lastEpisode || 1}" style="cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0;" class="card" style="overflow:hidden;">
+            <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + c.posterPath" style="width:100%; display:block;" />
+            <div *ngIf="!c.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
+            <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.title }}</div>
+            <div *ngIf="c.lastEpisode" style="font-size:0.7rem; padding:0 0.5rem 0.5rem 0.5rem; color:var(--text-secondary);">S{{ c.lastSeason }}E{{ c.lastEpisode }}</div>
+          </div>
+        </div>
+      </div>
+
       <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:1rem;">
         <div *ngFor="let c of contents" [routerLink]="['/watch', c.tmdbId]" [queryParams]="{type: c.type}" style="cursor:pointer; overflow:hidden;" class="card">
           <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w300' + c.posterPath" style="width:100%; display:block;" />
@@ -32,9 +47,11 @@ import { Content } from '../../models/content.model';
 })
 export class HomeComponent implements OnInit, OnDestroy {
   private contentService = inject(ContentService);
+  private watchlistService = inject(WatchlistService);
   private search$ = new Subject<string>();
   private searchSub: Subscription;
   contents: Content[] = [];
+  continueList: ContinueWatching[] = [];
   type: 'movie' | 'tv' = 'movie';
   query = '';
   private page = 1;
@@ -66,6 +83,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.loadContinueWatching();
     this.loadTrending();
   }
 
@@ -82,6 +100,12 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.hasMore = data.results.length > 0;
       this.isLoading = false;
       this.checkFillViewport();
+    });
+  }
+
+  loadContinueWatching() {
+    this.watchlistService.continueWatching().subscribe(list => {
+      this.continueList = list;
     });
   }
 
