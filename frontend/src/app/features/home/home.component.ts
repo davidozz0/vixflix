@@ -57,8 +57,6 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
 
       <div *ngIf="!isSearching" style="margin-bottom:0.75rem;">
         <h3 style="margin:0; color:var(--text-primary);">Trending {{ type === 'movie' ? 'Film' : 'Serie TV' }}</h3>
-      <div *ngIf="!isSearching" style="margin-bottom:0.75rem;">
-        <h3 style="margin:0; color:var(--text-primary);">Trending {{ type === 'movie' ? 'Film' : 'Serie TV' }}</h3>
       </div>
 
       <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:1rem;">
