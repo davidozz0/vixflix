@@ -89,8 +89,9 @@ export class PlayerComponent implements OnInit, OnDestroy {
       console.log('postMessage IGNORED: not a PLAYER_EVENT', msg?.type);
       return;
     }
-    const data = msg.data;
+    const data = msg.data || msg;
     console.log('PLAYER_EVENT', data.event, data);
+    if (!data.event || !data.currentTime) return;
     if (data.event === 'timeupdate') {
       this.watchlist.upsert(this.tmdbId, {
         status: 'watching',
