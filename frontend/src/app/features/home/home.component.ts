@@ -7,6 +7,7 @@ import { ContentService } from '../../core/services/content.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
 import { ModalService } from '../../core/services/modal.service';
 import { DialogService } from '../../core/services/dialog.service';
+import { ProfileService } from '../../core/services/profile.service';
 import { Content } from '../../models/content.model';
 import { ContinueWatching } from '../../models/continue-watching.model';
 import { WatchlistEntry } from '../../models/watchlist.model';
@@ -20,6 +21,11 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
     <div class="page" style="padding:1rem;">
       <div style="margin-bottom:1rem;">
         <input [(ngModel)]="query" (ngModelChange)="onQueryChange($event)" placeholder="Cerca..." style="width:100%; max-width:400px; padding:0.5rem; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); border-radius:4px;" />
+      </div>
+
+      <div *ngIf="!isLoggedIn" style="margin-bottom:1rem; padding:0.75rem 1rem; background:var(--accent); color:#fff; border-radius:8px; display:flex; align-items:center; justify-content:space-between;">
+        <span>Effettua il login per salvare i tuoi contenuti</span>
+        <a routerLink="/" style="color:#fff; font-weight:600; text-decoration:underline;">Accedi</a>
       </div>
 
       <div *ngIf="continueList.length" style="margin-bottom:1.5rem;">
@@ -62,6 +68,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   private watchlistService = inject(WatchlistService);
   private modalService = inject(ModalService);
   private dialogService = inject(DialogService);
+  private profileService = inject(ProfileService);
   private cdr = inject(ChangeDetectorRef);
   private search$ = new Subject<string>();
   private searchSub: Subscription;
@@ -71,6 +78,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   continueList: ContinueWatching[] = [];
   type: 'movie' | 'tv' = 'movie';
   query = '';
+  get isLoggedIn(): boolean { return !!this.profileService.getToken(); }
   private page = 1;
   private isSearching = false;
   isLoading = false;

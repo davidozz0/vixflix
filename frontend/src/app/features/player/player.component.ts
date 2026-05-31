@@ -72,7 +72,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
         resumeTimeSeconds: Math.floor(data.currentTime)
       }).subscribe({
         next: () => console.log('watchlist upsert OK'),
-        error: (err) => console.error('watchlist upsert FAIL', err)
+        error: (err) => console.error('watchlist upsert FAIL - not logged in?', err.status)
       });
     }
     if (data.event === 'ended') {
@@ -83,7 +83,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
         resumeTimeSeconds: 0
       }).subscribe({
         next: () => console.log('watchlist completed OK'),
-        error: (err) => console.error('watchlist completed FAIL', err)
+        error: (err) => console.error('watchlist completed FAIL - not logged in?', err.status)
       });
     }
   };
