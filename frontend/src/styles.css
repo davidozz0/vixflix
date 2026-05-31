@@ -67,4 +67,7 @@ body {
   border: 1px solid var(--border);
 }
 
-.hide-scroll::-webkit-scrollbar { display: none; }
+.thin-scroll { scrollbar-width: thin; scrollbar-color: #555 transparent; }
+.thin-scroll::-webkit-scrollbar { height: 4px; }
+.thin-scroll::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
