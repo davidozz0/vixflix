@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { ThemeService } from '../../core/services/theme.service';
 
 @Component({
@@ -8,8 +8,9 @@ import { ThemeService } from '../../core/services/theme.service';
   imports: [RouterModule],
   template: `
     <nav>
-      <a routerLink="/home" class="brand">VixFlix</a>
-      <a routerLink="/home" class="link">Home</a>
+      <a routerLink="/home" [queryParams]="{type: activeType}" class="brand">VixFlix</a>
+      <a routerLink="/home" [queryParams]="{type: 'movie'}" class="link" [class.active]="activeType==='movie'">Film</a>
+      <a routerLink="/home" [queryParams]="{type: 'tv'}" class="link" [class.active]="activeType==='tv'">Serie TV</a>
       <button class="theme-toggle" (click)="theme.toggle()">
         {{ theme.theme === 'dark' ? '☀️' : '🌙' }}
       </button>
@@ -19,7 +20,7 @@ import { ThemeService } from '../../core/services/theme.service';
     nav {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 1.5rem;
       padding: 1rem;
       background-color: var(--bg-secondary);
       border-bottom: 1px solid var(--border);
@@ -31,8 +32,15 @@ import { ThemeService } from '../../core/services/theme.service';
       font-size: 1.2rem;
     }
     .link {
-      color: var(--text-primary);
+      color: var(--text-secondary);
       text-decoration: none;
+      font-size: 0.95rem;
+      padding-bottom: 2px;
+    }
+    .link.active {
+      color: var(--text-primary);
+      border-bottom: 2px solid var(--accent);
+      font-weight: 600;
     }
     .theme-toggle {
       margin-left: auto;
@@ -45,4 +53,11 @@ import { ThemeService } from '../../core/services/theme.service';
 })
 export class NavbarComponent {
   theme = inject(ThemeService);
+  private router = inject(Router);
+
+  get activeType(): 'movie' | 'tv' {
+    const url = this.router.url;
+    if (url.includes('type=tv')) return 'tv';
+    return 'movie';
+  }
 }

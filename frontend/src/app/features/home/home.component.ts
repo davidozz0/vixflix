@@ -1,8 +1,8 @@
 import { Component, inject, OnInit, OnDestroy, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Subject, Subscription, debounceTime, distinctUntilChanged, filter } from 'rxjs';
 import { ContentService } from '../../core/services/content.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
 import { Content } from '../../models/content.model';
@@ -14,12 +14,8 @@ import { ContinueWatching } from '../../models/continue-watching.model';
   imports: [CommonModule, RouterModule, FormsModule],
   template: `
     <div class="page" style="padding:1rem;">
-      <div style="display:flex; gap:1rem; margin-bottom:1rem;">
-        <input [(ngModel)]="query" (ngModelChange)="onQueryChange($event)" placeholder="Cerca..." style="flex:1; padding:0.5rem; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); border-radius:4px;" />
-        <select [(ngModel)]="type" (change)="onTypeChange()" style="padding:0.5rem; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); border-radius:4px;">
-          <option value="movie">Film</option>
-          <option value="tv">Serie TV</option>
-        </select>
+      <div style="margin-bottom:1rem;">
+        <input [(ngModel)]="query" (ngModelChange)="onQueryChange($event)" placeholder="Cerca..." style="width:100%; max-width:400px; padding:0.5rem; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); border-radius:4px;" />
       </div>
 
       <div *ngIf="continueList.length" style="margin-bottom:1.5rem;">
@@ -52,11 +48,13 @@ import { ContinueWatching } from '../../models/continue-watching.model';
   `
 })
 export class HomeComponent implements OnInit, OnDestroy {
+  private route = inject(ActivatedRoute);
   private contentService = inject(ContentService);
   private watchlistService = inject(WatchlistService);
   private cdr = inject(ChangeDetectorRef);
   private search$ = new Subject<string>();
   private searchSub: Subscription;
+  private queryParamsSub!: Subscription;
   contents: Content[] = [];
   continueList: ContinueWatching[] = [];
   type: 'movie' | 'tv' = 'movie';
@@ -91,16 +89,29 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.queryParamsSub = this.route.queryParamMap.subscribe(params => {
+      const newType = (params.get('type') as 'movie' | 'tv') || 'movie';
+      if (newType !== this.type) {
+        this.type = newType;
+        this.page = 1;
+        this.hasMore = true;
+        this.contents = [];
+        this.query = '';
+        this.isSearching = false;
+        this.loadTrending();
+      }
+    });
     this.loadContinueWatching();
     this.loadTrending();
   }
 
   ngOnDestroy() {
     this.searchSub.unsubscribe();
+    this.queryParamsSub.unsubscribe();
   }
 
   loadTrending() {
-    if (this.isLoading || !this.hasMore) return;
+    if (this.isLoading || !this.hasMore || this.isSearching) return;
     this.isLoading = true;
     this.contentService.trending(this.type, this.page).subscribe(data => {
       this.contents = this.page === 1 ? data.results : [...this.contents, ...data.results];
@@ -121,15 +132,6 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   onQueryChange(value: string) {
     this.search$.next(value);
-  }
-
-  onTypeChange() {
-    this.page = 1;
-    this.hasMore = true;
-    this.contents = [];
-    this.query = '';
-    this.isSearching = false;
-    this.loadTrending();
   }
 
   @HostListener('window:scroll')

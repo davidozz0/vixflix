@@ -43,7 +43,7 @@ export class ProfilePickerComponent {
   create() {
     this.error = '';
     this.profileService.createProfile(this.name, this.pin).subscribe({
-      next: () => this.router.navigate(['/home']),
+      next: () => this.router.navigate(['/home'], { queryParams: { type: 'movie' } }),
       error: () => this.error = 'Errore creazione profilo'
     });
   }
@@ -51,7 +51,7 @@ export class ProfilePickerComponent {
   login() {
     this.error = '';
     this.profileService.login(this.name, this.pin).subscribe({
-      next: () => this.router.navigate(['/home']),
+      next: () => this.router.navigate(['/home'], { queryParams: { type: 'movie' } }),
       error: () => this.error = 'Nome o PIN errati'
     });
   }
