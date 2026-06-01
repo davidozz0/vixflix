@@ -1,8 +1,7 @@
 import { Component, inject, OnInit, OnDestroy, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { FormsModule } from '@angular/forms';
-import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { ContentService } from '../../core/services/content.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
 import { ModalService } from '../../core/services/modal.service';
@@ -17,13 +16,9 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, ContentModalComponent],
+  imports: [CommonModule, RouterModule, ContentModalComponent],
   template: `
     <div class="page" style="padding:1rem;">
-      <div style="margin-bottom:1rem;">
-        <input [(ngModel)]="query" (ngModelChange)="onQueryChange($event)" placeholder="Cerca..." style="width:100%; max-width:400px; padding:0.5rem; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); border-radius:4px;" />
-      </div>
-
       <div *ngIf="!isLoggedIn" style="margin-bottom:1rem; padding:0.75rem 1rem; background:var(--accent); color:#fff; border-radius:8px; display:flex; align-items:center; justify-content:space-between;">
         <span>Effettua il login per salvare i tuoi contenuti</span>
         <a routerLink="/" style="color:#fff; font-weight:600; text-decoration:underline;">Accedi</a>
@@ -85,66 +80,48 @@ export class HomeComponent implements OnInit, OnDestroy {
   private dialogService = inject(DialogService);
   private profileService = inject(ProfileService);
   private cdr = inject(ChangeDetectorRef);
-  private search$ = new Subject<string>();
-  private searchSub: Subscription;
   private queryParamsSub!: Subscription;
   private watchlistMap = new Map<number, WatchlistEntry>();
   contents: Content[] = [];
   continueList: ContinueWatching[] = [];
   recommended: RecommendedContent[] = [];
   type: 'movie' | 'tv' = 'movie';
-  query = '';
   get isLoggedIn(): boolean { return !!this.profileService.getToken(); }
   private page = 1;
+  private lastQ = '';
   isSearching = false;
   isLoading = false;
   private hasMore = true;
 
-  constructor() {
-    this.searchSub = this.search$.pipe(
-      debounceTime(300),
-      distinctUntilChanged()
-    ).subscribe(q => {
-      if (q.length >= 3) {
-        this.isSearching = true;
-        this.page = 1;
-        this.hasMore = true;
-        this.contentService.search(q, this.page).subscribe(data => {
-          this.contents = data.results;
-          this.isLoading = false;
-          this.cdr.detectChanges();
-        });
-      } else {
-        this.isSearching = false;
-        this.page = 1;
-        this.hasMore = true;
-        this.contents = [];
-        this.loadTrending();
-      }
-    });
-  }
-
   ngOnInit() {
     this.queryParamsSub = this.route.queryParamMap.subscribe(params => {
       const newType = (params.get('type') as 'movie' | 'tv') || 'movie';
-      if (newType !== this.type) {
+      const q = params.get('q') || '';
+      if (newType !== this.type || q !== this.lastQ) {
         this.type = newType;
+        this.lastQ = q;
         this.page = 1;
         this.hasMore = true;
         this.contents = [];
-        this.query = '';
-        this.isSearching = false;
-        this.loadTrending();
+        if (q.length >= 3) {
+          this.isSearching = true;
+          this.contentService.search(q, this.page).subscribe(data => {
+            this.contents = data.results;
+            this.isLoading = false;
+            this.cdr.detectChanges();
+          });
+        } else {
+          this.isSearching = false;
+          this.loadTrending();
+        }
       }
     });
     this.loadWatchlistMap();
     this.loadContinueWatching();
     this.loadRecommended();
-    this.loadTrending();
   }
 
   ngOnDestroy() {
-    this.searchSub.unsubscribe();
     this.queryParamsSub.unsubscribe();
   }
 
@@ -201,10 +178,6 @@ export class HomeComponent implements OnInit, OnDestroy {
       type: r.type,
       status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
     });
-  }
-
-  onQueryChange(value: string) {
-    this.search$.next(value);
   }
 
   @HostListener('window:scroll')
