@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, OnDestroy, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
 import { ContentService } from '../../core/services/content.service';
@@ -79,7 +79,6 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
 })
 export class HomeComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
-  private router = inject(Router);
   private contentService = inject(ContentService);
   private watchlistService = inject(WatchlistService);
   private modalService = inject(ModalService);
@@ -188,21 +187,11 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   onCardClick(c: Content) {
     const wl = this.watchlistMap.get(c.tmdbId);
-    if (wl && wl.status === 'watching') {
-      this.router.navigate(['/watch', c.tmdbId], {
-        queryParams: {
-          type: c.type,
-          season: wl.lastSeason ?? undefined,
-          episode: wl.lastEpisode ?? undefined,
-        }
-      });
-    } else {
-      this.modalService.open({
-        tmdbId: c.tmdbId,
-        type: c.type,
-        status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
-      });
-    }
+    this.modalService.open({
+      tmdbId: c.tmdbId,
+      type: c.type,
+      status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
+    });
   }
 
   onQueryChange(value: string) {
