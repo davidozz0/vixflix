@@ -89,7 +89,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
       console.log('postMessage IGNORED: not a PLAYER_EVENT', msg?.type);
       return;
     }
-    const data = msg.data || msg;
+    const data = msg.data || msg.event || msg;
     console.log('PLAYER_EVENT', data.event, data);
     if (data.event === 'timeupdate') {
       console.log('>>> SAVING timeupdate, currentTime=', data.currentTime);
