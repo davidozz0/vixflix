@@ -35,16 +35,14 @@ export class PlayerComponent implements OnInit, OnDestroy {
     this.episode = Number(this.route.snapshot.queryParamMap.get('episode')) || 1;
     console.log('Player init', { tmdbId: this.tmdbId, type: this.type, season: this.season, episode: this.episode });
 
-    this.loadPlayer();
-
     this.watchlist.getAll().subscribe({
       next: (list) => {
         const wl = list.find(e => e.tmdbId === this.tmdbId);
-        if (wl && wl.resumeTimeSeconds > 0) {
-          this.loadPlayer(wl.resumeTimeSeconds);
-        }
+        this.loadPlayer(wl?.resumeTimeSeconds ?? 0);
       },
-      error: () => { /* no-op, already loaded */ }
+      error: () => {
+        this.loadPlayer(0);
+      }
     });
 
     window.addEventListener('message', this.onMessage);
