@@ -1,17 +1,19 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import bcryptjs from "bcryptjs";
-import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import { db } from "./db/index.js";
-import { profiles, watchlist } from "./db/schema.js";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { profiles, sessions, loginLogs, watchlist } from "./db/schema.js";
+import { eq, and, desc, inArray, lt, sql } from "drizzle-orm";
 
 dotenv.config();
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -21,26 +23,45 @@ app.use((req, res, next) => {
   next();
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+const SESSION_DAYS = 30;
 const TMDB_KEY = process.env.TMDB_API_KEY || "";
 const TMDB_BASE = "https://api.themoviedb.org/3";
-
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
 
 interface AuthRequest extends Request {
   profileId?: number;
 }
 
-function auth(req: AuthRequest, res: Response, next: NextFunction) {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: "Missing token" });
-  const token = header.replace("Bearer ", "");
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as { profileId: number };
-    req.profileId = payload.profileId;
-    next();
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
+async function auth(req: AuthRequest, res: Response, next: NextFunction) {
+  const token = req.cookies?.session;
+  if (!token) return res.status(401).json({ error: "Not authenticated" });
+  const rows = db.select().from(sessions)
+    .where(and(eq(sessions.token, token), lt(sessions.expiresAt, sql`datetime('now')`)))
+    .all();
+  if (rows.length === 0) {
+    res.clearCookie("session");
+    return res.status(401).json({ error: "Session expired" });
   }
+  req.profileId = rows[0].profileId;
+  next();
+}
+
+function getClientIp(req: Request): string {
+  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+    || req.socket.remoteAddress
+    || "";
+}
+
+async function sendTelegramMessage(text: string) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: "HTML" }),
+    });
+  } catch { /* optional */ }
 }
 
 async function tmdb(path: string, params?: Record<string, string>) {
@@ -94,6 +115,59 @@ function normalizeDetail(raw: any, type: "movie" | "tv"): any {
   return base;
 }
 
+// Auth routes
+app.post("/api/profiles/login", async (req, res) => {
+  const { name, pin } = req.body;
+  if (!name || !pin) return res.status(400).json({ error: "Invalid name or pin" });
+  const rows = db.select().from(profiles).where(eq(profiles.name, name)).all();
+  if (rows.length === 0) return res.status(401).json({ error: "Not found" });
+  const profile = rows[0];
+  const ok = await bcryptjs.compare(String(pin), profile.pinHash);
+  if (!ok) return res.status(401).json({ error: "Invalid pin" });
+
+  const ip = getClientIp(req);
+  const ua = req.headers["user-agent"] || "";
+
+  // Check if first login
+  const prevLogins = db.select().from(loginLogs).where(eq(loginLogs.profileId, profile.id)).all();
+
+  // Log the login
+  db.insert(loginLogs).values({ profileId: profile.id, ip, userAgent: ua }).run();
+
+  // Telegram on first login
+  if (prevLogins.length === 0) {
+    const msg = `<b>🔐 Nuovo accesso VixFlix</b>\nUtente: ${profile.name}\nIP: ${ip}\nBrowser: ${ua}`;
+    sendTelegramMessage(msg);
+  }
+
+  // Create session
+  const token = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+  db.insert(sessions).values({ profileId: profile.id, token, ip, userAgent: ua, expiresAt }).run();
+
+  res.cookie("session", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000,
+    path: "/",
+  });
+  res.json({ profile: { id: profile.id, name: profile.name } });
+});
+
+app.post("/api/profiles/logout", auth, (req: AuthRequest, res) => {
+  const token = req.cookies?.session;
+  if (token) db.delete(sessions).where(eq(sessions.token, token)).run();
+  res.clearCookie("session", { path: "/" });
+  res.json({ ok: true });
+});
+
+app.get("/api/profiles/me", auth, (req: AuthRequest, res) => {
+  const profileId = req.profileId!;
+  const rows = db.select({ id: profiles.id, name: profiles.name }).from(profiles).where(eq(profiles.id, profileId)).all();
+  if (rows.length === 0) return res.status(404).json({ error: "Not found" });
+  res.json(rows[0]);
+});
+
 // TMDB routes
 app.get("/api/trending", async (req, res) => {
   try {
@@ -110,10 +184,7 @@ app.get("/api/trending", async (req, res) => {
       path = type === "tv" ? "/trending/tv/week" : "/trending/movie/week";
     }
     const data = await tmdb(path, params);
-    res.json({
-      page: data.page,
-      results: data.results.map((r: any) => normalizeMovie(r)),
-    });
+    res.json({ page: data.page, results: data.results.map((r: any) => normalizeMovie(r)) });
   } catch (e: any) {
     res.status(502).json({ error: e.message });
   }
@@ -147,8 +218,7 @@ app.get("/api/content/:tmdbId", async (req, res) => {
   try {
     const tmdbId = Number(req.params.tmdbId);
     const type = (req.query.type as string) || "movie";
-    const path = `/${type}/${tmdbId}`;
-    const data = await tmdb(path, { append_to_response: "credits" });
+    const data = await tmdb(`/${type}/${tmdbId}`, { append_to_response: "credits" });
     res.json(normalizeDetail(data, type as "movie" | "tv"));
   } catch (e: any) {
     res.status(502).json({ error: e.message });
@@ -172,38 +242,6 @@ app.get("/api/content/:tmdbId/season/:seasonNumber", async (req, res) => {
   }
 });
 
-// Profile routes
-app.post("/api/profiles", async (req, res) => {
-  const { name, pin } = req.body;
-  if (!name || !pin || String(pin).length !== 4) {
-    return res.status(400).json({ error: "Invalid name or pin" });
-  }
-  const pinHash = await bcryptjs.hash(String(pin), 10);
-  const rows = db.insert(profiles).values({ name, pinHash }).returning().all();
-  const profile = rows[0];
-  const token = jwt.sign({ profileId: profile.id }, JWT_SECRET, { expiresIn: "7d" });
-  res.json({ profile: { id: profile.id, name: profile.name }, token });
-});
-
-app.post("/api/profiles/login", async (req, res) => {
-  const { name, pin } = req.body;
-  if (!name || !pin) return res.status(400).json({ error: "Invalid name or pin" });
-  const rows = db.select().from(profiles).where(eq(profiles.name, name)).all();
-  if (rows.length === 0) return res.status(401).json({ error: "Not found" });
-  const profile = rows[0];
-  const ok = await bcryptjs.compare(String(pin), profile.pinHash);
-  if (!ok) return res.status(401).json({ error: "Invalid pin" });
-  const token = jwt.sign({ profileId: profile.id }, JWT_SECRET, { expiresIn: "7d" });
-  res.json({ profile: { id: profile.id, name: profile.name }, token });
-});
-
-app.get("/api/profiles/me", auth, (req: AuthRequest, res) => {
-  const profileId = req.profileId!;
-  const rows = db.select({ id: profiles.id, name: profiles.name }).from(profiles).where(eq(profiles.id, profileId)).all();
-  if (rows.length === 0) return res.status(404).json({ error: "Not found" });
-  res.json(rows[0]);
-});
-
 // Watchlist routes
 app.get("/api/watchlist", auth, (req: AuthRequest, res) => {
   const profileId = req.profileId!;
@@ -215,13 +253,9 @@ app.put("/api/watchlist/:tmdbId", auth, (req: AuthRequest, res) => {
   const profileId = req.profileId!;
   const tmdbId = Number(req.params.tmdbId);
   const { status, lastSeason, lastEpisode, resumeTimeSeconds } = req.body;
-
-  const existing = db
-    .select()
-    .from(watchlist)
+  const existing = db.select().from(watchlist)
     .where(and(eq(watchlist.profileId, profileId), eq(watchlist.tmdbId, tmdbId)))
     .all();
-
   if (existing.length > 0) {
     db.update(watchlist)
       .set({ status, lastSeason, lastEpisode, resumeTimeSeconds: resumeTimeSeconds ?? 0, updatedAt: new Date() })
@@ -243,25 +277,13 @@ app.get("/api/watchlist/continue", auth, async (req: AuthRequest, res) => {
       .where(and(eq(watchlist.profileId, profileId), eq(watchlist.status, "watching")))
       .orderBy(desc(watchlist.updatedAt))
       .all();
-    const results = await Promise.all(
-      entries.map(async (e) => {
-        try {
-          const type = e.lastEpisode ? "tv" : "movie";
-          const data = await tmdb(`/${type}/${e.tmdbId}`, {});
-          return {
-            tmdbId: e.tmdbId,
-            title: data.title || data.name,
-            posterPath: data.poster_path,
-            type,
-            lastSeason: e.lastSeason,
-            lastEpisode: e.lastEpisode,
-            resumeTimeSeconds: e.resumeTimeSeconds,
-          };
-        } catch {
-          return null;
-        }
-      })
-    );
+    const results = await Promise.all(entries.map(async (e) => {
+      try {
+        const type = e.lastEpisode ? "tv" : "movie";
+        const data = await tmdb(`/${type}/${e.tmdbId}`, {});
+        return { tmdbId: e.tmdbId, title: data.title || data.name, posterPath: data.poster_path, type, lastSeason: e.lastSeason, lastEpisode: e.lastEpisode, resumeTimeSeconds: e.resumeTimeSeconds };
+      } catch { return null; }
+    }));
     res.json(results.filter(Boolean));
   } catch (e: any) {
     res.status(502).json({ error: e.message });
@@ -272,24 +294,12 @@ app.get("/api/watchlist/recommended", auth, async (req: AuthRequest, res) => {
   try {
     const profileId = req.profileId!;
     const recent = db.select().from(watchlist)
-      .where(and(
-        eq(watchlist.profileId, profileId),
-        inArray(watchlist.status, ["watched", "watching"]),
-      ))
+      .where(and(eq(watchlist.profileId, profileId), inArray(watchlist.status, ["watched", "watching"])))
       .orderBy(desc(watchlist.updatedAt))
-      .limit(5)
-      .all();
-
+      .limit(5).all();
     if (recent.length === 0) return res.json([]);
-
-    const watchlistIds = new Set(
-      db.select({ tmdbId: watchlist.tmdbId }).from(watchlist)
-        .where(eq(watchlist.profileId, profileId))
-        .all().map(r => r.tmdbId)
-    );
-
+    const watchlistIds = new Set(db.select({ tmdbId: watchlist.tmdbId }).from(watchlist).where(eq(watchlist.profileId, profileId)).all().map(r => r.tmdbId));
     const freq = new Map<number, { count: number; title: string; posterPath: string | null; type: string }>();
-
     for (const entry of recent) {
       const type = entry.lastEpisode ? "tv" : "movie";
       try {
@@ -297,30 +307,23 @@ app.get("/api/watchlist/recommended", auth, async (req: AuthRequest, res) => {
         for (const r of (data.results || [])) {
           if (watchlistIds.has(r.id)) continue;
           const existing = freq.get(r.id);
-          if (existing) {
-            existing.count++;
-          } else {
-            freq.set(r.id, {
-              count: 1,
-              title: r.title || r.name,
-              posterPath: r.poster_path,
-              type: r.title ? "movie" : "tv",
-            });
+          if (existing) { existing.count++; } else {
+            freq.set(r.id, { count: 1, title: r.title || r.name, posterPath: r.poster_path, type: r.title ? "movie" : "tv" });
           }
         }
-      } catch { /* skip failed */ }
+      } catch { /* skip */ }
     }
-
-    const sorted = Array.from(freq.entries())
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 20)
-      .map(([tmdbId, v]) => ({ tmdbId, ...v }));
-
+    const sorted = Array.from(freq.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, 20).map(([tmdbId, v]) => ({ tmdbId, ...v }));
     res.json(sorted);
   } catch (e: any) {
     res.status(502).json({ error: e.message });
   }
 });
+
+// Clean expired sessions hourly
+setInterval(() => {
+  db.delete(sessions).where(lt(sessions.expiresAt, sql`datetime('now')`)).run();
+}, 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

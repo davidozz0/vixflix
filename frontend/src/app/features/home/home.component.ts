@@ -87,7 +87,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   recommended: RecommendedContent[] = [];
   type: 'movie' | 'tv' = 'movie';
   private genre = '';
-  get isLoggedIn(): boolean { return !!this.profileService.getToken(); }
+  get isLoggedIn(): boolean { return this.profileService.isLoggedIn; }
   private page = 1;
   private lastQ = '';
   isSearching = false;

@@ -4,30 +4,26 @@ import { Observable } from 'rxjs';
 import { WatchlistEntry, WatchStatus } from '../../models/watchlist.model';
 import { ContinueWatching } from '../../models/continue-watching.model';
 import { RecommendedContent } from '../../models/recommended-content.model';
-import { ProfileService } from './profile.service';
 import { environment } from '../../../environments/environment';
 
 const API_URL = environment.apiUrl;
 
 @Injectable({ providedIn: 'root' })
 export class WatchlistService {
-  constructor(private http: HttpClient, private profile: ProfileService) {}
+  constructor(private http: HttpClient) {}
 
-  private authHeaders() {
-    const token = this.profile.getToken();
-    return { Authorization: `Bearer ${token}` };
-  }
+  private get opts() { return { withCredentials: true } as const; }
 
   getAll(): Observable<WatchlistEntry[]> {
-    return this.http.get<WatchlistEntry[]>(`${API_URL}/watchlist`, { headers: this.authHeaders() });
+    return this.http.get<WatchlistEntry[]>(`${API_URL}/watchlist`, this.opts);
   }
 
   continueWatching(): Observable<ContinueWatching[]> {
-    return this.http.get<ContinueWatching[]>(`${API_URL}/watchlist/continue`, { headers: this.authHeaders() });
+    return this.http.get<ContinueWatching[]>(`${API_URL}/watchlist/continue`, this.opts);
   }
 
   getRecommended(): Observable<RecommendedContent[]> {
-    return this.http.get<RecommendedContent[]>(`${API_URL}/watchlist/recommended`, { headers: this.authHeaders() });
+    return this.http.get<RecommendedContent[]>(`${API_URL}/watchlist/recommended`, this.opts);
   }
 
   upsert(tmdbId: number, payload: {
@@ -36,7 +32,7 @@ export class WatchlistService {
     lastEpisode?: number | null;
     resumeTimeSeconds?: number;
   }): Observable<{ ok: boolean }> {
-    return this.http.put<{ ok: boolean }>(`${API_URL}/watchlist/${tmdbId}`, payload, { headers: this.authHeaders() });
+    return this.http.put<{ ok: boolean }>(`${API_URL}/watchlist/${tmdbId}`, payload, this.opts);
   }
 
   remove(tmdbId: number): Observable<{ ok: boolean }> {
@@ -45,6 +41,6 @@ export class WatchlistService {
       lastSeason: null,
       lastEpisode: null,
       resumeTimeSeconds: 0
-    }, { headers: this.authHeaders() });
+    }, this.opts);
   }
 }

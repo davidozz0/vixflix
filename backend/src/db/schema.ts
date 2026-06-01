@@ -8,6 +8,24 @@ export const profiles = sqliteTable("profiles", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const sessions = sqliteTable("sessions", {
+  id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  profileId: integer("profile_id", { mode: "number" }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  token: text("token").notNull(),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+});
+
+export const loginLogs = sqliteTable("login_logs", {
+  id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  profileId: integer("profile_id", { mode: "number" }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const watchlist = sqliteTable("watchlist", {
   id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
   profileId: integer("profile_id", { mode: "number" }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
