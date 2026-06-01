@@ -2,8 +2,11 @@
 import Database from "better-sqlite3";
 import bcryptjs from "bcryptjs";
 import readline from "readline";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 
-const dbPath = process.env.DATABASE_URL || "./sqlite.db";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const dbPath = process.env.DATABASE_URL || join(__dirname, "..", "sqlite.db");
 const sqlite = new Database(dbPath);
 
 async function ask(q: string): Promise<string> {
