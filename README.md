@@ -6,9 +6,9 @@ Catalogo contenuti audiovisivi con player integrato via vixsrc.to. Aggrega metad
 
 | Layer | Tecnologia |
 |---|---|
-| Frontend | Angular 19+ (standalone), TypeScript, RxJS, CSS custom properties (dark/light) |
+| Frontend | Angular 19+ (standalone), TypeScript, RxJS, CSS custom properties (dark) |
 | Backend | Node.js, Express, Drizzle ORM, SQLite (better-sqlite3) |
-| Auth | PIN a 4 cifre, JWT |
+| Auth | PIN a 4 cifre + session cookie HttpOnly |
 | Metadati | TMDB API (v4 auth) |
 | Player | iframe vixsrc.to + postMessage per progresso |
 
@@ -26,9 +26,10 @@ Copia `backend/.env` e imposta le variabili:
 
 ```env
 PORT=3000
-JWT_SECRET=il-tuo-secret
 DATABASE_URL=./sqlite.db
 TMDB_API_KEY=il-tuo-access-token-tmdb-v4
+TELEGRAM_BOT_TOKEN=opzionale
+TELEGRAM_CHAT_ID=opzionale
 ```
 
 TMDB API key gratuita: https://www.themoviedb.org/settings/api — serve un Access Token (lettura), non una API key v3.
@@ -48,6 +49,21 @@ Per ricevere notifiche su Telegram al primo accesso di un utente:
    TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
    TELEGRAM_CHAT_ID=123456789
    ```
+
+## Gestione utenti
+
+La creazione utenti è riservata all'amministratore. Usa la CLI:
+
+```bash
+cd backend
+npx tsx src/admin.ts add <nome> <pin>    # Crea un utente
+npx tsx src/admin.ts list                 # Lista utenti
+npx tsx src/admin.ts delete <nome>        # Elimina utente
+```
+
+Esempio: `npx tsx src/admin.ts add davidozzo 1234`
+
+Ogni utente accede con **nome** e **PIN a 4 cifre**. La sessione persiste 30 giorni via cookie HttpOnly.
 
 ## Script
 
@@ -92,7 +108,10 @@ npm install && cd backend && npm install && cd ../frontend && npm install && cd 
 
 # Configura
 cp backend/.env.example backend/.env
-nano backend/.env   # inserisci TMDB_API_KEY e JWT_SECRET
+nano backend/.env   # inserisci TMDB_API_KEY
+
+# Crea il primo utente
+cd backend && npx tsx src/admin.ts add <nome> <pin> && cd ..
 
 # Avvia
 chmod +x start.sh
@@ -107,18 +126,18 @@ L'app sarà accessibile su `http://<ip-server>:4200`. Assicurati che la porta 42
 vixflix/
 ├── frontend/       # Angular standalone
 │   ├── src/app/
-│   │   ├── core/services/    # ProfileService, WatchlistService, ContentService, ThemeService
+│   │   ├── core/services/    # ProfileService, WatchlistService, ContentService
 │   │   ├── models/           # Content, Profile, WatchlistEntry
 │   │   └── features/         # Home, Player, ProfilePicker, MediaDetail
 │   ├── nginx.conf
 │   └── Dockerfile
 ├── backend/        # Node + Express + Drizzle
-│   ├── src/db/schema.ts      # profiles, watchlist
-│   ├── src/index.ts          # API routes
-│   ├── drizzle/              # SQLite migrations
+│   ├── src/
+│   │   ├── admin.ts           # CLI gestione utenti
+│   │   ├── index.ts           # API routes
+│   │   └── db/schema.ts       # profiles, sessions, watchlist, login_logs
 │   └── Dockerfile
 ├── docker-compose.yml
-└── CONTEXT.md                # Glossario dominio
 
 ---
 
