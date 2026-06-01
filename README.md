@@ -33,6 +33,22 @@ TMDB_API_KEY=il-tuo-access-token-tmdb-v4
 
 TMDB API key gratuita: https://www.themoviedb.org/settings/api — serve un Access Token (lettura), non una API key v3.
 
+### Notifiche Telegram (opzionale)
+
+Per ricevere notifiche su Telegram al primo accesso di un utente:
+
+1. Apri Telegram e cerca **@BotFather**
+2. Invia `/newbot` e segui le istruzioni (scegli nome e username del bot)
+3. Copia il **token** ricevuto (es. `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`)
+4. Cerca il bot appena creato su Telegram e avvia una chat (invia `/start`)
+5. Vai su `https://api.telegram.org/bot<TOKEN>/getUpdates` (sostituisci `<TOKEN>` col token)
+6. Nella risposta JSON cerca `"chat":{"id":123456789}` — quello è il tuo **chat ID**
+7. Inserisci entrambi in `backend/.env`:
+   ```env
+   TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+   TELEGRAM_CHAT_ID=123456789
+   ```
+
 ## Script
 
 | Comando | Directory | Descrizione |
