@@ -1,16 +1,4 @@
 :root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f0f0f0;
-  --text-primary: #111111;
-  --text-secondary: #555555;
-  --accent: #e50914;
-  --card-bg: #ffffff;
-  --border: #cccccc;
-  --pill-bg: #e0e0e0;
-  --pill-text: #333333;
-}
-
-[data-theme="dark"] {
   --bg-primary: #000000;
   --bg-secondary: #111111;
   --text-primary: #ffffff;
