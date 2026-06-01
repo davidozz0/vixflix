@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -22,6 +22,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private sanitizer = inject(DomSanitizer);
   private watchlist = inject(WatchlistService);
+  private cdr = inject(ChangeDetectorRef);
   src?: SafeResourceUrl;
   private tmdbId = 0;
   private type: 'movie' | 'tv' = 'movie';
@@ -60,6 +61,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
     }
     console.log('=== VIXFLIX PLAYER URL ===', url);
     this.src = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    this.cdr.detectChanges();
 
     this.watchlist.upsert(this.tmdbId, {
       status: 'watching',
