@@ -1,13 +1,9 @@
 #!/usr/bin/env node
-import Database from "better-sqlite3";
 import bcryptjs from "bcryptjs";
 import readline from "readline";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const dbPath = process.env.DATABASE_URL || join(__dirname, "..", "sqlite.db");
-const sqlite = new Database(dbPath);
+import { db } from "./db/index.js";
+import { profiles } from "./db/schema.js";
+import { eq } from "drizzle-orm";
 
 async function ask(q: string): Promise<string> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -26,25 +22,25 @@ async function main() {
       console.error("Il PIN deve essere di 4 cifre numeriche.");
       process.exit(1);
     }
-    const pinHash = await bcryptjs.hash(pin, 10);
-    const existing = sqlite.prepare("SELECT * FROM profiles WHERE name = ?").all(name);
+    const existing = db.select().from(profiles).where(eq(profiles.name, name)).all();
     if (existing.length > 0) {
       console.error(`Utente "${name}" esiste già.`);
       process.exit(1);
     }
-    sqlite.prepare("INSERT INTO profiles (name, pin_hash) VALUES (?, ?)").run(name, pinHash);
+    const pinHash = await bcryptjs.hash(pin, 10);
+    db.insert(profiles).values({ name, pinHash }).run();
     console.log(`✅ Utente "${name}" creato con successo.`);
   } else if (cmd === "list") {
-    const rows = sqlite.prepare("SELECT id, name, created_at FROM profiles ORDER BY id").all() as any[];
+    const rows = db.select({ id: profiles.id, name: profiles.name, createdAt: profiles.createdAt }).from(profiles).orderBy(profiles.id).all();
     console.log("ID | Nome       | Creato il");
     console.log("-----------------------------");
     for (const r of rows) {
-      console.log(`${r.id}  | ${r.name.padEnd(10)} | ${r.created_at}`);
+      console.log(`${r.id}  | ${r.name.padEnd(10)} | ${r.createdAt}`);
     }
   } else if (cmd === "delete") {
     let name = process.argv[3];
     if (!name) name = await ask("Nome utente da eliminare: ");
-    const result = sqlite.prepare("DELETE FROM profiles WHERE name = ?").run(name);
+    const result = db.delete(profiles).where(eq(profiles.name, name)).run();
     if (result.changes > 0) {
       console.log(`✅ Utente "${name}" eliminato.`);
     } else {
@@ -52,11 +48,10 @@ async function main() {
     }
   } else {
     console.log("VixFlix Admin CLI");
-    console.log("  npx tsx src/admin.ts add [nome]    Crea un nuovo utente");
-    console.log("  npx tsx src/admin.ts list           Lista tutti gli utenti");
-    console.log("  npx tsx src/admin.ts delete [nome]  Elimina un utente");
+    console.log("  npx tsx src/admin.ts add [nome] [pin]    Crea un nuovo utente");
+    console.log("  npx tsx src/admin.ts list                 Lista tutti gli utenti");
+    console.log("  npx tsx src/admin.ts delete [nome]        Elimina un utente");
   }
-  sqlite.close();
 }
 
 main();
