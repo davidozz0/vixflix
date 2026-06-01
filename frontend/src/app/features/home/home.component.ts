@@ -47,7 +47,7 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
       <div *ngIf="recommended.length" style="margin-bottom:1.5rem;">
         <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Consigliati per te</h3>
         <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;" class="thin-scroll">
-          <div *ngFor="let r of recommended" [routerLink]="['/watch', r.tmdbId]" [queryParams]="{type: r.type}" style="cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; overflow:hidden;" class="card">
+          <div *ngFor="let r of recommended" (click)="onRecommendedClick(r)" style="cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; overflow:hidden;" class="card">
             <img *ngIf="r.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + r.posterPath" style="width:100%; display:block;" />
             <div *ngIf="!r.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
             <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.title }}</div>
@@ -190,6 +190,15 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.modalService.open({
       tmdbId: c.tmdbId,
       type: c.type,
+      status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
+    });
+  }
+
+  onRecommendedClick(r: RecommendedContent) {
+    const wl = this.watchlistMap.get(r.tmdbId);
+    this.modalService.open({
+      tmdbId: r.tmdbId,
+      type: r.type,
       status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
     });
   }
