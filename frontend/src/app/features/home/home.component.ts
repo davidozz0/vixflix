@@ -86,6 +86,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   continueList: ContinueWatching[] = [];
   recommended: RecommendedContent[] = [];
   type: 'movie' | 'tv' = 'movie';
+  private genre = '';
   get isLoggedIn(): boolean { return !!this.profileService.getToken(); }
   private page = 1;
   private lastQ = '';
@@ -97,9 +98,11 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.queryParamsSub = this.route.queryParamMap.subscribe(params => {
       const newType = (params.get('type') as 'movie' | 'tv') || 'movie';
       const q = params.get('q') || '';
-      if (newType !== this.type || q !== this.lastQ) {
+      const newGenre = params.get('genre') || '';
+      if (newType !== this.type || q !== this.lastQ || newGenre !== this.genre) {
         this.type = newType;
         this.lastQ = q;
+        this.genre = newGenre;
         this.page = 1;
         this.hasMore = true;
         this.contents = [];
@@ -128,7 +131,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   loadTrending() {
     if (this.isLoading || !this.hasMore || this.isSearching) return;
     this.isLoading = true;
-    this.contentService.trending(this.type, this.page).subscribe(data => {
+    this.contentService.trending(this.type, this.page, this.genre || undefined).subscribe(data => {
       this.contents = this.page === 1 ? data.results : [...this.contents, ...data.results];
       this.page++;
       this.hasMore = data.results.length > 0;

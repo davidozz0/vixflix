@@ -99,12 +99,31 @@ app.get("/api/trending", async (req, res) => {
   try {
     const type = (req.query.type as string) || "movie";
     const page = (req.query.page as string) || "1";
-    const path = type === "tv" ? "/trending/tv/week" : "/trending/movie/week";
-    const data = await tmdb(path, { page });
+    const genre = req.query.genre as string;
+    let path: string;
+    const params: Record<string, string> = { page };
+    if (genre) {
+      path = `/discover/${type}`;
+      params.with_genres = genre;
+      params.sort_by = "popularity.desc";
+    } else {
+      path = type === "tv" ? "/trending/tv/week" : "/trending/movie/week";
+    }
+    const data = await tmdb(path, params);
     res.json({
       page: data.page,
       results: data.results.map((r: any) => normalizeMovie(r)),
     });
+  } catch (e: any) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+app.get("/api/genres", async (req, res) => {
+  try {
+    const type = (req.query.type as string) || "movie";
+    const data = await tmdb(`/genre/${type}/list`, {});
+    res.json(data.genres || []);
   } catch (e: any) {
     res.status(502).json({ error: e.message });
   }
