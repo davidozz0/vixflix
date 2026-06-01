@@ -5,7 +5,7 @@ import { Subscription } from 'rxjs';
 import { ModalService } from '../../core/services/modal.service';
 import { ContentService } from '../../core/services/content.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
-import { ContentDetail } from '../../models/content.model';
+import { ContentDetail, Episode } from '../../models/content.model';
 import { ModalData } from '../../models/modal-data.model';
 
 @Component({
@@ -35,8 +35,34 @@ import { ModalData } from '../../models/modal-data.model';
             </div>
             <p class="overview">{{ content.overview }}</p>
           </div>
+
+          <div *ngIf="content.type === 'tv' && content.seasons" class="episode-picker">
+            <div class="season-tabs">
+              <button *ngFor="let s of content.seasons"
+                      (click)="selectSeason(s.seasonNumber)"
+                      [class.active]="s.seasonNumber === selectedSeason"
+                      class="season-tab">
+                S{{ s.seasonNumber }}
+              </button>
+            </div>
+            <div *ngIf="episodes.length" class="episode-list">
+              <div *ngFor="let ep of episodes"
+                   (click)="selectedEpisode = ep.episodeNumber"
+                   [class.active-ep]="selectedEpisode === ep.episodeNumber"
+                   class="episode-row">
+                <span class="ep-num">{{ ep.episodeNumber }}</span>
+                <span class="ep-title">{{ ep.name }}</span>
+              </div>
+            </div>
+          </div>
+
           <div class="actions">
-            <button class="watch-btn" (click)="play()">{{ isWatched ? 'Riguarda' : 'Guarda' }}</button>
+            <button class="watch-btn" (click)="play()">
+              {{ isWatched ? 'Riguarda' : 'Guarda' }}
+              <span *ngIf="content.type === 'tv' && selectedSeason && selectedEpisode">
+                S{{ selectedSeason }}E{{ selectedEpisode }}
+              </span>
+            </button>
           </div>
         </div>
         <div *ngIf="!content" class="loading">Caricamento...</div>
@@ -101,6 +127,34 @@ import { ModalData } from '../../models/modal-data.model';
       color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5;
       margin: 0 0 1rem 0; overflow-wrap: break-word;
     }
+    .episode-picker {
+      padding: 0 1.5rem;
+    }
+    .season-tabs {
+      display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.75rem;
+    }
+    .season-tab {
+      background: var(--bg-secondary); color: var(--text-secondary);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.25rem 0.65rem; font-size: 0.85rem; cursor: pointer;
+    }
+    .season-tab.active {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+    .episode-list {
+      max-height: 200px; overflow-y: auto; margin-bottom: 0.75rem;
+      border: 1px solid var(--border); border-radius: 8px;
+    }
+    .episode-row {
+      display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem;
+      cursor: pointer; border-bottom: 1px solid var(--border); color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+    .episode-row:last-child { border-bottom: none; }
+    .episode-row:hover { background: var(--bg-secondary); }
+    .episode-row.active-ep { color: var(--text-primary); background: var(--bg-secondary); }
+    .ep-num { font-weight: 600; min-width: 24px; }
+    .ep-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .actions {
       padding: 0 1.5rem 1.5rem;
     }
@@ -127,6 +181,9 @@ export class ContentModalComponent implements OnDestroy {
   content?: ContentDetail;
   private data?: ModalData;
   isWatched = false;
+  selectedSeason = 1;
+  selectedEpisode?: number;
+  episodes: Episode[] = [];
 
   constructor() {
     this.sub = this.modalService.data.subscribe(data => {
@@ -134,9 +191,13 @@ export class ContentModalComponent implements OnDestroy {
       this.data = data;
       this.isWatched = data.status === 'watched';
       this.content = undefined;
+      this.selectedSeason = 1;
+      this.selectedEpisode = undefined;
+      this.episodes = [];
       this.visible = true;
       this.contentService.detail(data.tmdbId, data.type).subscribe(detail => {
         this.content = detail;
+        if (detail.type === 'tv') this.selectSeason(1);
         this.cdr.detectChanges();
       });
     });
@@ -146,10 +207,24 @@ export class ContentModalComponent implements OnDestroy {
     this.sub.unsubscribe();
   }
 
+  selectSeason(n: number) {
+    this.selectedSeason = n;
+    this.selectedEpisode = undefined;
+    this.contentService.seasonEpisodes(this.content!.tmdbId, n).subscribe(data => {
+      this.episodes = data.episodes;
+      this.cdr.detectChanges();
+    });
+  }
+
   play() {
     if (!this.data) return;
     this.visible = false;
-    this.router.navigate(['/watch', this.data.tmdbId], { queryParams: { type: this.data.type } });
+    const qp: any = { type: this.data.type };
+    if (this.content?.type === 'tv') {
+      qp.season = this.selectedSeason;
+      qp.episode = this.selectedEpisode || this.episodes[0]?.episodeNumber || 1;
+    }
+    this.router.navigate(['/watch', this.data.tmdbId], { queryParams: qp });
   }
 
   close() {
