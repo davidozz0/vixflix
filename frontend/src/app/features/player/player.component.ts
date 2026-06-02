@@ -17,10 +17,10 @@ import { Episode } from '../../models/content.model';
         Caricamento...
       </div>
     </div>
-    <a routerLink="/home" style="position:fixed; top:16px; left:16px; z-index:20; background:rgba(0,0,0,0.6); color:#fff; padding:8px 16px; border-radius:4px; text-decoration:none; font-size:14px;">← Home</a>
-    <div *ngIf="type==='tv'" style="position:fixed; bottom:30px; left:0; right:0; z-index:20; display:flex; justify-content:center; gap:1rem;">
-      <button *ngIf="hasPrev" (click)="goPrev()" style="background:rgba(0,0,0,0.7); color:#fff; border:none; padding:0.5rem 1rem; border-radius:4px; cursor:pointer;">← Ep. precedente</button>
-      <button *ngIf="hasNext" (click)="goNext()" style="background:rgba(0,0,0,0.7); color:#fff; border:none; padding:0.5rem 1rem; border-radius:4px; cursor:pointer;">Ep. successivo →</button>
+    <a routerLink="/home" style="position:fixed; top:16px; left:16px; z-index:30; background:rgba(0,0,0,0.6); color:#fff; padding:8px 16px; border-radius:4px; text-decoration:none; font-size:14px;">← Home</a>
+    <div *ngIf="src && type==='tv'" style="position:fixed; bottom:80px; left:0; right:0; z-index:30; display:flex; justify-content:center; gap:1rem; pointer-events:none;">
+      <button *ngIf="hasPrev" (click)="goPrev()" style="pointer-events:auto; background:rgba(0,0,0,0.7); color:#fff; border:none; padding:0.5rem 1rem; border-radius:4px; cursor:pointer;">← Ep. precedente</button>
+      <button *ngIf="hasNext" (click)="goNext()" style="pointer-events:auto; background:rgba(0,0,0,0.7); color:#fff; border:none; padding:0.5rem 1rem; border-radius:4px; cursor:pointer;">Ep. successivo →</button>
     </div>
   `
 })
@@ -52,6 +52,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
     if (this.type === 'tv') {
       this.contentService.seasonEpisodes(this.tmdbId, this.season).subscribe(data => {
         this.episodes = data.episodes;
+        console.log('Season episodes loaded', this.episodes.length, 'current ep:', this.episode);
         this.updateNav();
       });
     }
@@ -70,10 +71,12 @@ export class PlayerComponent implements OnInit, OnDestroy {
   private updateNav() {
     if (this.episodes.length === 0) return;
     const idx = this.episodes.findIndex(e => e.episodeNumber === this.episode);
+    console.log('updateNav', { idx, total: this.episodes.length, currentEp: this.episode });
     if (idx > 0) { this.hasPrev = true; this.prevEpisode = this.episodes[idx - 1].episodeNumber; }
     else this.hasPrev = false;
     if (idx >= 0 && idx < this.episodes.length - 1) { this.hasNext = true; this.nextEpisode = this.episodes[idx + 1].episodeNumber; }
     else this.hasNext = false;
+    this.cdr.detectChanges();
   }
 
   goPrev() {
