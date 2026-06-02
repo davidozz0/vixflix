@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -68,8 +68,10 @@ import { Genre } from '../../models/genre.model';
 export class NavbarComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private contentService = inject(ContentService);
+  private cdr = inject(ChangeDetectorRef);
   private search$ = new Subject<string>();
   private routerSub!: Subscription;
+  private lastType = '';
   query = '';
   genres: Genre[] = [];
   selectedGenre = '';
@@ -87,12 +89,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.loadGenres();
+    setTimeout(() => this.loadGenres());
     this.routerSub = this.router.events.pipe(
       filter(e => e instanceof NavigationEnd)
     ).subscribe(() => {
-      const prevType = this.activeType;
-      this.loadGenres();
+      if (this.activeType !== this.lastType) {
+        this.lastType = this.activeType;
+        setTimeout(() => this.loadGenres());
+      }
+      this.selectedGenre = this.getGenreParam();
+      this.cdr.detectChanges();
     });
   }
 

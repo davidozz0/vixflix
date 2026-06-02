@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -13,16 +13,39 @@ import { Episode } from '../../models/content.model';
   template: `
     <div style="position:fixed; inset:0; background:#000;">
       <iframe *ngIf="src" [src]="src" style="border:none; width:100%; height:100%; display:block;" allowfullscreen></iframe>
-      <div *ngIf="!src" style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-secondary);">
-        Caricamento...
+      <div *ngIf="!src" style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-secondary);">Caricamento...</div>
+      <div style="position:absolute; inset:0; pointer-events:none; z-index:1;">
+        <button routerLink="/home" class="nav-btn nav-home" [style.opacity]="showNav ? 1 : 0" [style.pointer-events]="showNav ? 'auto' : 'none'">
+          <span class="nav-arrow">⌂</span>
+          <span class="nav-label">home</span>
+        </button>
+        <button *ngIf="src && type==='tv' && hasPrev" (click)="goPrev()" class="nav-btn nav-left" [style.opacity]="showNav ? 1 : 0" [style.pointer-events]="showNav ? 'auto' : 'none'">
+          <span class="nav-arrow">◀</span>
+          <span class="nav-label">prev</span>
+        </button>
+        <button *ngIf="src && type==='tv' && hasNext" (click)="goNext()" class="nav-btn nav-right" [style.opacity]="showNav ? 1 : 0" [style.pointer-events]="showNav ? 'auto' : 'none'">
+          <span class="nav-arrow">▶</span>
+          <span class="nav-label">next</span>
+        </button>
       </div>
     </div>
-    <a routerLink="/home" style="position:fixed; top:16px; left:16px; z-index:30; background:rgba(0,0,0,0.6); color:#fff; padding:8px 16px; border-radius:4px; text-decoration:none; font-size:14px;">← Home</a>
-    <div *ngIf="src && type==='tv'" style="position:fixed; bottom:80px; left:0; right:0; z-index:30; display:flex; justify-content:center; gap:1rem; pointer-events:none;">
-      <button *ngIf="hasPrev" (click)="goPrev()" style="pointer-events:auto; background:rgba(0,0,0,0.7); color:#fff; border:none; padding:0.5rem 1rem; border-radius:4px; cursor:pointer;">← Ep. precedente</button>
-      <button *ngIf="hasNext" (click)="goNext()" style="pointer-events:auto; background:rgba(0,0,0,0.7); color:#fff; border:none; padding:0.5rem 1rem; border-radius:4px; cursor:pointer;">Ep. successivo →</button>
-    </div>
-  `
+  `,
+  styles: [`
+    .nav-btn {
+      position: fixed; top: 50%; transform: translateY(-50%); z-index: 30;
+      width: 105px; height: 180px;
+      background: rgba(0,0,0,0.5); color: #fff; border: none;
+      cursor: pointer; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 6px;
+      transition: opacity 0.3s;
+    }
+    .nav-left { left: 0; border-radius: 0 12px 12px 0; }
+    .nav-right { right: 0; border-radius: 12px 0 0 12px; }
+    .nav-home { top: 60px; left: 0; transform: none; width: 100px; height: 70px; border-radius: 0 12px 12px 0; }
+    .nav-arrow { font-size: 38px; }
+    .nav-label { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+    .nav-btn:hover { background: rgba(0,0,0,0.8); }
+  `]
 })
 export class PlayerComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
@@ -39,6 +62,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
   private episodes: Episode[] = [];
   hasPrev = false;
   hasNext = false;
+  showNav = true;
+  private navTimer: any;
   private prevEpisode?: number;
   private nextEpisode?: number;
 
@@ -52,117 +77,79 @@ export class PlayerComponent implements OnInit, OnDestroy {
     if (this.type === 'tv') {
       this.contentService.seasonEpisodes(this.tmdbId, this.season).subscribe(data => {
         this.episodes = data.episodes;
-        console.log('Season episodes loaded', this.episodes.length, 'current ep:', this.episode);
         this.updateNav();
       });
     }
 
     this.watchlist.getAll().subscribe({
-      next: (list) => {
-        const wl = list.find(e => e.tmdbId === this.tmdbId);
-        this.loadPlayer(wl?.resumeTimeSeconds ?? 0);
-      },
+      next: (list) => { const wl = list.find(e => e.tmdbId === this.tmdbId); this.loadPlayer(wl?.resumeTimeSeconds ?? 0); },
       error: () => this.loadPlayer(0)
     });
 
     window.addEventListener('message', this.onMessage);
+    document.addEventListener('keydown', this.onKeyDown);
+    this.startHideTimer();
   }
+
+  @HostListener('document:mousemove')
+  onMouseMove() { this.showNav = true; this.cdr.detectChanges(); clearTimeout(this.navTimer); this.startHideTimer(); }
+
+  private onKeyDown = () => { this.showNav = true; this.cdr.detectChanges(); clearTimeout(this.navTimer); this.startHideTimer(); };
+
+  private startHideTimer() { this.navTimer = setTimeout(() => { this.showNav = false; this.cdr.detectChanges(); }, 1000); }
 
   private updateNav() {
     if (this.episodes.length === 0) return;
     const idx = this.episodes.findIndex(e => e.episodeNumber === this.episode);
-    console.log('updateNav', { idx, total: this.episodes.length, currentEp: this.episode });
-    if (idx > 0) { this.hasPrev = true; this.prevEpisode = this.episodes[idx - 1].episodeNumber; }
-    else this.hasPrev = false;
-    if (idx >= 0 && idx < this.episodes.length - 1) { this.hasNext = true; this.nextEpisode = this.episodes[idx + 1].episodeNumber; }
-    else this.hasNext = false;
+    if (idx > 0) { this.hasPrev = true; this.prevEpisode = this.episodes[idx - 1].episodeNumber; } else this.hasPrev = false;
+    if (idx >= 0 && idx < this.episodes.length - 1) { this.hasNext = true; this.nextEpisode = this.episodes[idx + 1].episodeNumber; } else this.hasNext = false;
     this.cdr.detectChanges();
   }
 
-  goPrev() {
-    if (this.prevEpisode) this.navigateToEpisode(this.prevEpisode);
-  }
-
-  goNext() {
-    if (this.nextEpisode) this.navigateToEpisode(this.nextEpisode);
-  }
+  goPrev() { if (this.prevEpisode) this.navigateToEpisode(this.prevEpisode); }
+  goNext() { if (this.nextEpisode) this.navigateToEpisode(this.nextEpisode); }
 
   private navigateToEpisode(ep: number) {
-    this.episode = ep;
-    this.hasPrev = false; this.hasNext = false;
+    this.episode = ep; this.hasPrev = false; this.hasNext = false;
     this.prevEpisode = undefined; this.nextEpisode = undefined;
     this.loadPlayer(0);
-    this.contentService.seasonEpisodes(this.tmdbId, this.season).subscribe(data => {
-      this.episodes = data.episodes;
-      this.updateNav();
-    });
+    this.contentService.seasonEpisodes(this.tmdbId, this.season).subscribe(data => { this.episodes = data.episodes; this.updateNav(); });
   }
 
   private loadPlayer(startAt = 0) {
-    let url: string;
-    if (this.type === 'tv') {
-      url = `https://vixsrc.to/tv/${this.tmdbId}/${this.season}/${this.episode}?lang=it&autoplay=true`;
-    } else {
-      url = `https://vixsrc.to/movie/${this.tmdbId}?lang=it&autoplay=true`;
-    }
+    let url = this.type === 'tv'
+      ? `https://vixsrc.to/tv/${this.tmdbId}/${this.season}/${this.episode}?lang=it&autoplay=true`
+      : `https://vixsrc.to/movie/${this.tmdbId}?lang=it&autoplay=true`;
     if (startAt > 0) url += `&startAt=${startAt}`;
     console.log('=== VIXFLIX PLAYER URL ===', url);
     this.src = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     this.cdr.detectChanges();
-
     this.watchlist.upsert(this.tmdbId, {
-      status: 'watching',
-      lastSeason: this.type === 'tv' ? this.season : null,
-      lastEpisode: this.type === 'tv' ? this.episode : null,
-      resumeTimeSeconds: 0
-    }).subscribe({
-      next: () => console.log('watchlist saved on open'),
-      error: (err) => console.error('watchlist save failed', err.status)
-    });
+      status: 'watching', lastSeason: this.type === 'tv' ? this.season : null, lastEpisode: this.type === 'tv' ? this.episode : null, resumeTimeSeconds: 0
+    }).subscribe({ error: (err: any) => console.error('watchlist save failed', err.status) });
   }
 
   ngOnDestroy() {
     window.removeEventListener('message', this.onMessage);
+    document.removeEventListener('keydown', this.onKeyDown);
+    clearTimeout(this.navTimer);
   }
 
   private onMessage = (event: MessageEvent) => {
-    console.log('postMessage received', { origin: event.origin, data: event.data });
-    if (event.origin !== 'https://vixsrc.to') {
-      console.log('postMessage IGNORED: wrong origin', event.origin);
-      return;
-    }
+    if (event.origin !== 'https://vixsrc.to') return;
     const msg = event.data;
-    if (!msg || msg.type !== 'PLAYER_EVENT') {
-      console.log('postMessage IGNORED: not a PLAYER_EVENT', msg?.type);
-      return;
-    }
+    if (!msg || msg.type !== 'PLAYER_EVENT') return;
     const data = msg.data || msg.event || msg;
-    console.log('PLAYER_EVENT', data.event, data);
     if (data.event === 'timeupdate') {
-      console.log('>>> SAVING timeupdate, currentTime=', data.currentTime);
       this.watchlist.upsert(this.tmdbId, {
-        status: 'watching',
-        lastSeason: this.type === 'tv' ? this.season : null,
-        lastEpisode: this.type === 'tv' ? this.episode : null,
-        resumeTimeSeconds: Math.floor(data.currentTime)
-      }).subscribe({
-        next: () => console.log('watchlist upsert OK'),
-        error: (err) => console.error('watchlist upsert FAIL - not logged in?', err.status)
-      });
+        status: 'watching', lastSeason: this.type === 'tv' ? this.season : null, lastEpisode: this.type === 'tv' ? this.episode : null, resumeTimeSeconds: Math.floor(data.currentTime)
+      }).subscribe({ error: () => {} });
     }
     if (data.event === 'ended') {
       this.watchlist.upsert(this.tmdbId, {
-        status: 'watched',
-        lastSeason: this.type === 'tv' ? this.season : null,
-        lastEpisode: this.type === 'tv' ? this.episode : null,
-        resumeTimeSeconds: 0
-      }).subscribe({
-        next: () => console.log('watchlist completed OK'),
-        error: (err) => console.error('watchlist completed FAIL - not logged in?', err.status)
-      });
-      if (this.type === 'tv' && this.nextEpisode) {
-        setTimeout(() => this.goNext(), 3000);
-      }
+        status: 'watched', lastSeason: this.type === 'tv' ? this.season : null, lastEpisode: this.type === 'tv' ? this.episode : null, resumeTimeSeconds: 0
+      }).subscribe({ error: () => {} });
+      if (this.type === 'tv' && this.nextEpisode) setTimeout(() => this.goNext(), 3000);
     }
   };
 }
