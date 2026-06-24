@@ -26,6 +26,16 @@ export const loginLogs = sqliteTable("login_logs", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const wishlist = sqliteTable("wishlist", {
+  id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  profileId: integer("profile_id", { mode: "number" }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  tmdbId: integer("tmdb_id", { mode: "number" }).notNull(),
+  title: text("title").notNull(),
+  posterPath: text("poster_path"),
+  type: text("type", { enum: ["movie", "tv"] }).notNull().default("movie"),
+  addedAt: integer("added_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const watchlist = sqliteTable("watchlist", {
   id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
   profileId: integer("profile_id", { mode: "number" }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
