@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 import bcryptjs from "bcryptjs";
 import crypto from "crypto";
 import { db } from "./db/index.js";
-import { profiles, sessions, loginLogs, watchlist } from "./db/schema.js";
+import { profiles, sessions, loginLogs, watchlist, wishlist } from "./db/schema.js";
 import { eq, and, desc, inArray, lt, sql } from "drizzle-orm";
 
 dotenv.config();
@@ -318,6 +318,33 @@ app.get("/api/watchlist/recommended", auth, async (req: AuthRequest, res) => {
   } catch (e: any) {
     res.status(502).json({ error: e.message });
   }
+});
+
+// Wishlist routes
+app.get("/api/wishlist", auth, (req: AuthRequest, res) => {
+  const profileId = req.profileId!;
+  const rows = db.select().from(wishlist).where(eq(wishlist.profileId, profileId)).orderBy(desc(wishlist.addedAt)).all();
+  res.json(rows);
+});
+
+app.post("/api/wishlist/:tmdbId", auth, (req: AuthRequest, res) => {
+  const profileId = req.profileId!;
+  const tmdbId = Number(req.params.tmdbId);
+  const { title, posterPath, type } = req.body;
+  const existing = db.select().from(wishlist)
+    .where(and(eq(wishlist.profileId, profileId), eq(wishlist.tmdbId, tmdbId)))
+    .all();
+  if (existing.length === 0) {
+    db.insert(wishlist).values({ profileId, tmdbId, title, posterPath, type }).run();
+  }
+  res.json({ ok: true });
+});
+
+app.delete("/api/wishlist/:tmdbId", auth, (req: AuthRequest, res) => {
+  const profileId = req.profileId!;
+  const tmdbId = Number(req.params.tmdbId);
+  db.delete(wishlist).where(and(eq(wishlist.profileId, profileId), eq(wishlist.tmdbId, tmdbId))).run();
+  res.json({ ok: true });
 });
 
 // Clean expired sessions hourly
