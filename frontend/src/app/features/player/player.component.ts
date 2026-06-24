@@ -38,6 +38,7 @@ import { Episode } from '../../models/content.model';
       cursor: pointer; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 6px;
       transition: opacity 0.3s;
+      pointer-events: auto;
     }
     .nav-left { left: 0; border-radius: 0 12px 12px 0; }
     .nav-right { right: 0; border-radius: 12px 0 0 12px; }
