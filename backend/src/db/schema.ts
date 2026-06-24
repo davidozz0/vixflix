@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
+import { sqliteTable, integer, text, unique } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 export const profiles = sqliteTable("profiles", {
@@ -34,7 +34,9 @@ export const wishlist = sqliteTable("wishlist", {
   posterPath: text("poster_path"),
   type: text("type", { enum: ["movie", "tv"] }).notNull().default("movie"),
   addedAt: integer("added_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
-});
+}, (t) => ({
+  unq: unique().on(t.profileId, t.tmdbId),
+}));
 
 export const watchlist = sqliteTable("watchlist", {
   id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),

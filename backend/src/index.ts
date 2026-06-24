@@ -331,6 +331,7 @@ app.post("/api/wishlist/:tmdbId", auth, (req: AuthRequest, res) => {
   const profileId = req.profileId!;
   const tmdbId = Number(req.params.tmdbId);
   const { title, posterPath, type } = req.body;
+  if (!title || !type) return res.status(400).json({ error: "Missing required fields" });
   const existing = db.select().from(wishlist)
     .where(and(eq(wishlist.profileId, profileId), eq(wishlist.tmdbId, tmdbId)))
     .all();

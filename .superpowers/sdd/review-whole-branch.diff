@@ -1,0 +1,560 @@
+﻿
+# Whole branch review: d1e9315..a2e397a
+
+## Commits
+a2e397a fix: player overlay buttons always visible, remove auto-hide
+8a41086 feat: add wishlist section to home, '+' uses wishlist
+18276cb feat: add WishlistItem model and WishlistService
+1ae751d feat: add wishlist API routes
+8c92339 feat: add wishlist table and migration
+
+## Files changed
+ backend/drizzle/0002_create_wishlist.sql           | 10 +++
+ backend/src/db/schema.ts                           | 10 +++
+ backend/src/index.ts                               | 29 ++++++-
+ frontend/src/app/core/services/wishlist.service.ts | 22 ++++++
+ frontend/src/app/features/home/home.component.ts   | 90 ++++++++++++++++------
+ .../src/app/features/player/player.component.ts    | 19 ++---
+ frontend/src/app/models/wishlist-item.model.ts     |  8 ++
+ 7 files changed, 151 insertions(+), 37 deletions(-)
+
+## Diff
+diff --git a/backend/drizzle/0002_create_wishlist.sql b/backend/drizzle/0002_create_wishlist.sql
+new file mode 100644
+index 0000000..3c31d86
+--- /dev/null
++++ b/backend/drizzle/0002_create_wishlist.sql
+@@ -0,0 +1,10 @@
++CREATE TABLE `wishlist` (
++	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
++	`profile_id` integer NOT NULL,
++	`tmdb_id` integer NOT NULL,
++	`title` text NOT NULL,
++	`poster_path` text,
++	`type` text DEFAULT 'movie' NOT NULL,
++	`added_at` integer DEFAULT CURRENT_TIMESTAMP NOT NULL,
++	FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON UPDATE no action ON DELETE cascade
++);
+diff --git a/backend/src/db/schema.ts b/backend/src/db/schema.ts
+index 4faf35b..26e0fb1 100644
+--- a/backend/src/db/schema.ts
++++ b/backend/src/db/schema.ts
+@@ -19,20 +19,30 @@ export const sessions = sqliteTable("sessions", {
+ });
+ 
+ export const loginLogs = sqliteTable("login_logs", {
+   id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+   profileId: integer("profile_id", { mode: "number" }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
+   ip: text("ip"),
+   userAgent: text("user_agent"),
+   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+ });
+ 
++export const wishlist = sqliteTable("wishlist", {
++  id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
++  profileId: integer("profile_id", { mode: "number" }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
++  tmdbId: integer("tmdb_id", { mode: "number" }).notNull(),
++  title: text("title").notNull(),
++  posterPath: text("poster_path"),
++  type: text("type", { enum: ["movie", "tv"] }).notNull().default("movie"),
++  addedAt: integer("added_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
++});
++
+ export const watchlist = sqliteTable("watchlist", {
+   id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+   profileId: integer("profile_id", { mode: "number" }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
+   tmdbId: integer("tmdb_id", { mode: "number" }).notNull(),
+   status: text("status", { enum: ["unwatched", "watching", "watched"] }).notNull().default("unwatched"),
+   lastSeason: integer("last_season"),
+   lastEpisode: integer("last_episode"),
+   resumeTimeSeconds: integer("resume_time_seconds").notNull().default(0),
+   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+ });
+diff --git a/backend/src/index.ts b/backend/src/index.ts
+index dc17961..4a1e700 100644
+--- a/backend/src/index.ts
++++ b/backend/src/index.ts
+@@ -1,18 +1,18 @@
+ import express, { Request, Response, NextFunction } from "express";
+ import cors from "cors";
+ import cookieParser from "cookie-parser";
+ import dotenv from "dotenv";
+ import bcryptjs from "bcryptjs";
+ import crypto from "crypto";
+ import { db } from "./db/index.js";
+-import { profiles, sessions, loginLogs, watchlist } from "./db/schema.js";
++import { profiles, sessions, loginLogs, watchlist, wishlist } from "./db/schema.js";
+ import { eq, and, desc, inArray, lt, sql } from "drizzle-orm";
+ 
+ dotenv.config();
+ 
+ const app = express();
+ app.use(cors({ origin: true, credentials: true }));
+ app.use(express.json());
+ app.use(cookieParser());
+ 
+ app.use((req, res, next) => {
+@@ -313,19 +313,46 @@ app.get("/api/watchlist/recommended", auth, async (req: AuthRequest, res) => {
+         }
+       } catch { /* skip */ }
+     }
+     const sorted = Array.from(freq.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, 20).map(([tmdbId, v]) => ({ tmdbId, ...v }));
+     res.json(sorted);
+   } catch (e: any) {
+     res.status(502).json({ error: e.message });
+   }
+ });
+ 
++// Wishlist routes
++app.get("/api/wishlist", auth, (req: AuthRequest, res) => {
++  const profileId = req.profileId!;
++  const rows = db.select().from(wishlist).where(eq(wishlist.profileId, profileId)).orderBy(desc(wishlist.addedAt)).all();
++  res.json(rows);
++});
++
++app.post("/api/wishlist/:tmdbId", auth, (req: AuthRequest, res) => {
++  const profileId = req.profileId!;
++  const tmdbId = Number(req.params.tmdbId);
++  const { title, posterPath, type } = req.body;
++  const existing = db.select().from(wishlist)
++    .where(and(eq(wishlist.profileId, profileId), eq(wishlist.tmdbId, tmdbId)))
++    .all();
++  if (existing.length === 0) {
++    db.insert(wishlist).values({ profileId, tmdbId, title, posterPath, type }).run();
++  }
++  res.json({ ok: true });
++});
++
++app.delete("/api/wishlist/:tmdbId", auth, (req: AuthRequest, res) => {
++  const profileId = req.profileId!;
++  const tmdbId = Number(req.params.tmdbId);
++  db.delete(wishlist).where(and(eq(wishlist.profileId, profileId), eq(wishlist.tmdbId, tmdbId))).run();
++  res.json({ ok: true });
++});
++
+ // Clean expired sessions hourly
+ setInterval(() => {
+   db.delete(sessions).where(lt(sessions.expiresAt, sql`datetime('now')`)).run();
+ }, 60 * 60 * 1000);
+ 
+ const PORT = process.env.PORT || 3000;
+ app.listen(PORT, () => {
+   console.log(`Backend listening on port ${PORT}`);
+ });
+diff --git a/frontend/src/app/core/services/wishlist.service.ts b/frontend/src/app/core/services/wishlist.service.ts
+new file mode 100644
+index 0000000..7268d12
+--- /dev/null
++++ b/frontend/src/app/core/services/wishlist.service.ts
+@@ -0,0 +1,22 @@
++import { Injectable, inject } from '@angular/core';
++import { HttpClient } from '@angular/common/http';
++import { Observable } from 'rxjs';
++import { WishlistItem } from '../../models/wishlist-item.model';
++
++@Injectable({ providedIn: 'root' })
++export class WishlistService {
++  private http = inject(HttpClient);
++  private api = '/api/wishlist';
++
++  getAll(): Observable<WishlistItem[]> {
++    return this.http.get<WishlistItem[]>(this.api, { withCredentials: true });
++  }
++
++  add(tmdbId: number, item: { title: string; posterPath: string | null; type: string }): Observable<any> {
++    return this.http.post(`${this.api}/${tmdbId}`, item, { withCredentials: true });
++  }
++
++  remove(tmdbId: number): Observable<any> {
++    return this.http.delete(`${this.api}/${tmdbId}`, { withCredentials: true });
++  }
++}
+diff --git a/frontend/src/app/features/home/home.component.ts b/frontend/src/app/features/home/home.component.ts
+index db813b3..09eaf2a 100644
+--- a/frontend/src/app/features/home/home.component.ts
++++ b/frontend/src/app/features/home/home.component.ts
+@@ -4,20 +4,22 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
+ import { Subscription } from 'rxjs';
+ import { ContentService } from '../../core/services/content.service';
+ import { WatchlistService } from '../../core/services/watchlist.service';
+ import { ModalService } from '../../core/services/modal.service';
+ import { DialogService } from '../../core/services/dialog.service';
+ import { ProfileService } from '../../core/services/profile.service';
+ import { Content } from '../../models/content.model';
+ import { ContinueWatching } from '../../models/continue-watching.model';
+ import { WatchlistEntry } from '../../models/watchlist.model';
+ import { RecommendedContent } from '../../models/recommended-content.model';
++import { WishlistService } from '../../core/services/wishlist.service';
++import { WishlistItem } from '../../models/wishlist-item.model';
+ import { ContentModalComponent } from '../content-modal/content-modal.component';
+ 
+ @Component({
+   selector: 'app-home',
+   standalone: true,
+   imports: [CommonModule, RouterModule, ContentModalComponent],
+   template: `
+     <div class="page" style="padding:1rem;">
+       <div *ngIf="!isLoggedIn" style="margin-bottom:1rem; padding:0.75rem 1rem; background:var(--accent); color:#fff; border-radius:8px; display:flex; align-items:center; justify-content:space-between;">
+         <span>Effettua il login per salvare i tuoi contenuti</span>
+@@ -32,20 +34,34 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
+               <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + c.posterPath" style="width:100%; display:block;" />
+               <div *ngIf="!c.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
+               <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.title }}</div>
+               <div *ngIf="c.lastEpisode" style="font-size:0.7rem; padding:0 0.5rem 0.5rem 0.5rem; color:var(--text-secondary);">S{{ c.lastSeason }}E{{ c.lastEpisode }}</div>
+             </div>
+             <button (click)="removeContinue(c, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-size:14px; line-height:1;">Ô£ò</button>
+           </div>
+         </div>
+       </div>
+ 
++      <div *ngIf="wishlistItems.length" style="margin-bottom:1.5rem;">
++        <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Wishlist</h3>
++        <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;" class="thin-scroll">
++          <div *ngFor="let w of wishlistItems" style="position:relative; cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; overflow:hidden;" class="card">
++            <div (click)="onWishlistClick(w)">
++              <img *ngIf="w.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + w.posterPath" style="width:100%; display:block;" />
++              <div *ngIf="!w.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
++              <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ w.title }}</div>
++            </div>
++            <button (click)="removeFromWishlist(w, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-size:14px; line-height:1;">Ô£ò</button>
++          </div>
++        </div>
++      </div>
++
+       <div *ngIf="recommended.length" style="margin-bottom:1.5rem;">
+         <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Consigliati per te</h3>
+         <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;" class="thin-scroll">
+           <div *ngFor="let r of recommended" (click)="onRecommendedClick(r)" style="cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; overflow:hidden;" class="card">
+             <img *ngIf="r.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + r.posterPath" style="width:100%; display:block;" />
+             <div *ngIf="!r.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
+             <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.title }}</div>
+           </div>
+         </div>
+       </div>
+@@ -54,41 +70,44 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
+         <h3 style="margin:0; color:var(--text-primary);">Trending {{ type === 'movie' ? 'Film' : 'Serie TV' }}</h3>
+       </div>
+ 
+       <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:1rem;">
+         <div *ngFor="let c of contents" style="position:relative; overflow:hidden; cursor:pointer;" class="card">
+           <div (click)="onCardClick(c)">
+             <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w300' + c.posterPath" style="width:100%; display:block;" />
+             <div *ngIf="!c.posterPath" style="width:100%; aspect-ratio:2/3; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
+             <div style="font-size:0.9rem; padding:0.5rem; color:var(--text-primary);">{{ c.title }}</div>
+           </div>
+-          <button (click)="addToWatchlist(c, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;"
+-                  [style.background]="isInWatchlist(c.tmdbId) ? 'rgba(76,175,80,0.85)' : 'rgba(0,0,0,0.7)'">
+-            {{ isInWatchlist(c.tmdbId) ? 'Ô£ô' : '+' }}
++          <button (click)="toggleWishlist(c, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;"
++                  [style.background]="isInWishlist(c.tmdbId) ? 'rgba(76,175,80,0.85)' : 'rgba(0,0,0,0.7)'">
++            {{ isInWishlist(c.tmdbId) ? 'Ô£ô' : '+' }}
+           </button>
+         </div>
+       </div>
+       <div *ngIf="isLoading" style="text-align:center; padding:1rem; color:var(--text-secondary);">Caricamento...</div>
+     </div>
+     <app-content-modal></app-content-modal>
+   `
+ })
+ export class HomeComponent implements OnInit, OnDestroy {
+   private route = inject(ActivatedRoute);
+   private contentService = inject(ContentService);
+   private watchlistService = inject(WatchlistService);
+   private modalService = inject(ModalService);
+   private dialogService = inject(DialogService);
+   private profileService = inject(ProfileService);
++  private wishlistService = inject(WishlistService);
+   private cdr = inject(ChangeDetectorRef);
+   private queryParamsSub!: Subscription;
+   private watchlistMap = new Map<number, WatchlistEntry>();
++  wishlistItems: WishlistItem[] = [];
++  private wishlistMap = new Map<number, WishlistItem>();
+   contents: Content[] = [];
+   continueList: ContinueWatching[] = [];
+   recommended: RecommendedContent[] = [];
+   type: 'movie' | 'tv' = 'movie';
+   private genre = '';
+   get isLoggedIn(): boolean { return this.profileService.isLoggedIn; }
+   private page = 1;
+   private lastQ = '';
+   isSearching = false;
+   isLoading = false;
+@@ -112,23 +131,24 @@ export class HomeComponent implements OnInit, OnDestroy {
+             this.contents = data.results;
+             this.isLoading = false;
+             this.cdr.detectChanges();
+           });
+         } else {
+           this.isSearching = false;
+           this.loadTrending();
+         }
+       }
+     });
+-    this.loadWatchlistMap();
++    this.loadWatchlistStatusMap();
+     this.loadContinueWatching();
+     this.loadRecommended();
++    this.loadWishlistItems();
+   }
+ 
+   ngOnDestroy() {
+     this.queryParamsSub.unsubscribe();
+   }
+ 
+   loadTrending() {
+     if (this.isLoading || !this.hasMore || this.isSearching) return;
+     this.isLoading = true;
+     this.contentService.trending(this.type, this.page, this.genre || undefined).subscribe(data => {
+@@ -148,21 +168,21 @@ export class HomeComponent implements OnInit, OnDestroy {
+     });
+   }
+ 
+   loadRecommended() {
+     this.watchlistService.getRecommended().subscribe(list => {
+       this.recommended = list;
+       this.cdr.detectChanges();
+     });
+   }
+ 
+-  loadWatchlistMap() {
++  loadWatchlistStatusMap() {
+     this.watchlistService.getAll().subscribe(list => {
+       this.watchlistMap.clear();
+       for (const e of list) {
+         if (e.status !== 'unwatched') this.watchlistMap.set(e.tmdbId, e);
+       }
+       this.cdr.detectChanges();
+     });
+   }
+ 
+   onCardClick(c: Content) {
+@@ -195,49 +215,75 @@ export class HomeComponent implements OnInit, OnDestroy {
+ 
+   private checkFillViewport() {
+     if (this.isLoading || !this.hasMore || this.isSearching) return;
+     const docHeight = document.documentElement.scrollHeight;
+     const viewportHeight = window.innerHeight;
+     if (docHeight <= viewportHeight) {
+       this.loadTrending();
+     }
+   }
+ 
+-  isInWatchlist(tmdbId: number): boolean {
+-    return this.watchlistMap.has(tmdbId);
++  loadWishlistItems() {
++    this.wishlistService.getAll().subscribe(list => {
++      this.wishlistItems = list;
++      this.wishlistMap.clear();
++      for (const item of list) {
++        this.wishlistMap.set(item.tmdbId, item);
++      }
++      this.cdr.detectChanges();
++    });
++  }
++
++  isInWishlist(tmdbId: number): boolean {
++    return this.wishlistMap.has(tmdbId);
+   }
+ 
+-  async addToWatchlist(c: Content, event: Event) {
++  async toggleWishlist(c: Content, event: Event) {
+     event.stopPropagation();
+     event.preventDefault();
+-    if (this.isInWatchlist(c.tmdbId)) {
+-      const ok = await this.dialogService.confirm(`Rimuovere "${c.title}" dalla watchlist?`);
++    if (this.isInWishlist(c.tmdbId)) {
++      const ok = await this.dialogService.confirm(`Rimuovere "${c.title}" dalla wishlist?`);
+       if (!ok) return;
+-      this.watchlistService.remove(c.tmdbId).subscribe(() => {
+-        this.loadWatchlistMap();
+-        this.loadContinueWatching();
++      this.wishlistService.remove(c.tmdbId).subscribe(() => {
++        this.loadWishlistItems();
+       });
+     } else {
+-      this.watchlistService.upsert(c.tmdbId, {
+-        status: 'watching',
+-        lastSeason: c.type === 'tv' ? 1 : null,
+-        lastEpisode: c.type === 'tv' ? 1 : null,
+-        resumeTimeSeconds: 0
++      this.wishlistService.add(c.tmdbId, {
++        title: c.title,
++        posterPath: c.posterPath,
++        type: c.type,
+       }).subscribe(() => {
+-        this.loadWatchlistMap();
+-        this.loadContinueWatching();
+-        this.loadRecommended();
++        this.loadWishlistItems();
+       });
+     }
+   }
+ 
++  onWishlistClick(w: WishlistItem) {
++    const wl = this.watchlistMap.get(w.tmdbId);
++    this.modalService.open({
++      tmdbId: w.tmdbId,
++      type: w.type,
++      status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
++    });
++  }
++
++  async removeFromWishlist(w: WishlistItem, event: Event) {
++    event.stopPropagation();
++    event.preventDefault();
++    const ok = await this.dialogService.confirm(`Rimuovere "${w.title}" dalla wishlist?`);
++    if (!ok) return;
++    this.wishlistService.remove(w.tmdbId).subscribe(() => {
++      this.loadWishlistItems();
++    });
++  }
++
+   async removeContinue(c: ContinueWatching, event: Event) {
+     event.stopPropagation();
+     event.preventDefault();
+     const ok = await this.dialogService.confirm(`Rimuovere "${c.title}" dalla lista?`);
+     if (!ok) return;
+     this.watchlistService.remove(c.tmdbId).subscribe(() => {
+-      this.loadWatchlistMap();
++      this.loadWatchlistStatusMap();
+       this.loadContinueWatching();
+     });
+   }
+ }
+diff --git a/frontend/src/app/features/player/player.component.ts b/frontend/src/app/features/player/player.component.ts
+index 82bbb20..11f7bca 100644
+--- a/frontend/src/app/features/player/player.component.ts
++++ b/frontend/src/app/features/player/player.component.ts
+@@ -1,36 +1,36 @@
+-import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef, HostListener } from '@angular/core';
++import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+ import { CommonModule } from '@angular/common';
+ import { ActivatedRoute, RouterModule, Router } from '@angular/router';
+ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+ import { WatchlistService } from '../../core/services/watchlist.service';
+ import { ContentService } from '../../core/services/content.service';
+ import { Episode } from '../../models/content.model';
+ 
+ @Component({
+   selector: 'app-player',
+   standalone: true,
+   imports: [CommonModule, RouterModule],
+   template: `
+     <div style="position:fixed; inset:0; background:#000;">
+       <iframe *ngIf="src" [src]="src" style="border:none; width:100%; height:100%; display:block;" allowfullscreen></iframe>
+       <div *ngIf="!src" style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-secondary);">Caricamento...</div>
+       <div style="position:absolute; inset:0; pointer-events:none; z-index:1;">
+-        <button routerLink="/home" class="nav-btn nav-home" [style.opacity]="showNav ? 1 : 0" [style.pointer-events]="showNav ? 'auto' : 'none'">
++        <button routerLink="/home" class="nav-btn nav-home">
+           <span class="nav-arrow">Ôîé</span>
+           <span class="nav-label">home</span>
+         </button>
+-        <button *ngIf="src && type==='tv' && hasPrev" (click)="goPrev()" class="nav-btn nav-left" [style.opacity]="showNav ? 1 : 0" [style.pointer-events]="showNav ? 'auto' : 'none'">
++        <button *ngIf="src && type==='tv' && hasPrev" (click)="goPrev()" class="nav-btn nav-left">
+           <span class="nav-arrow">ÔùÇ</span>
+           <span class="nav-label">prev</span>
+         </button>
+-        <button *ngIf="src && type==='tv' && hasNext" (click)="goNext()" class="nav-btn nav-right" [style.opacity]="showNav ? 1 : 0" [style.pointer-events]="showNav ? 'auto' : 'none'">
++        <button *ngIf="src && type==='tv' && hasNext" (click)="goNext()" class="nav-btn nav-right">
+           <span class="nav-arrow">ÔûÂ</span>
+           <span class="nav-label">next</span>
+         </button>
+       </div>
+     </div>
+   `,
+   styles: [`
+     .nav-btn {
+       position: fixed; top: 50%; transform: translateY(-50%); z-index: 30;
+       width: 105px; height: 180px;
+@@ -55,22 +55,20 @@ export class PlayerComponent implements OnInit, OnDestroy {
+   private contentService = inject(ContentService);
+   private cdr = inject(ChangeDetectorRef);
+   src?: SafeResourceUrl;
+   type: 'movie' | 'tv' = 'movie';
+   private tmdbId = 0;
+   private season = 1;
+   private episode = 1;
+   private episodes: Episode[] = [];
+   hasPrev = false;
+   hasNext = false;
+-  showNav = true;
+-  private navTimer: any;
+   private prevEpisode?: number;
+   private nextEpisode?: number;
+ 
+   ngOnInit() {
+     this.tmdbId = Number(this.route.snapshot.paramMap.get('tmdbId'));
+     this.type = (this.route.snapshot.queryParamMap.get('type') as 'movie' | 'tv') || 'movie';
+     this.season = Number(this.route.snapshot.queryParamMap.get('season')) || 1;
+     this.episode = Number(this.route.snapshot.queryParamMap.get('episode')) || 1;
+     console.log('Player init', { tmdbId: this.tmdbId, type: this.type, season: this.season, episode: this.episode });
+ 
+@@ -80,30 +78,24 @@ export class PlayerComponent implements OnInit, OnDestroy {
+         this.updateNav();
+       });
+     }
+ 
+     this.watchlist.getAll().subscribe({
+       next: (list) => { const wl = list.find(e => e.tmdbId === this.tmdbId); this.loadPlayer(wl?.resumeTimeSeconds ?? 0); },
+       error: () => this.loadPlayer(0)
+     });
+ 
+     window.addEventListener('message', this.onMessage);
+-    document.addEventListener('keydown', this.onKeyDown);
+-    this.startHideTimer();
+   }
+ 
+-  @HostListener('document:mousemove')
+-  onMouseMove() { this.showNav = true; this.cdr.detectChanges(); clearTimeout(this.navTimer); this.startHideTimer(); }
+ 
+-  private onKeyDown = () => { this.showNav = true; this.cdr.detectChanges(); clearTimeout(this.navTimer); this.startHideTimer(); };
+ 
+-  private startHideTimer() { this.navTimer = setTimeout(() => { this.showNav = false; this.cdr.detectChanges(); }, 1000); }
+ 
+   private updateNav() {
+     if (this.episodes.length === 0) return;
+     const idx = this.episodes.findIndex(e => e.episodeNumber === this.episode);
+     if (idx > 0) { this.hasPrev = true; this.prevEpisode = this.episodes[idx - 1].episodeNumber; } else this.hasPrev = false;
+     if (idx >= 0 && idx < this.episodes.length - 1) { this.hasNext = true; this.nextEpisode = this.episodes[idx + 1].episodeNumber; } else this.hasNext = false;
+     this.cdr.detectChanges();
+   }
+ 
+   goPrev() { if (this.prevEpisode) this.navigateToEpisode(this.prevEpisode); }
+@@ -124,22 +116,21 @@ export class PlayerComponent implements OnInit, OnDestroy {
+     console.log('=== VIXFLIX PLAYER URL ===', url);
+     this.src = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+     this.cdr.detectChanges();
+     this.watchlist.upsert(this.tmdbId, {
+       status: 'watching', lastSeason: this.type === 'tv' ? this.season : null, lastEpisode: this.type === 'tv' ? this.episode : null, resumeTimeSeconds: 0
+     }).subscribe({ error: (err: any) => console.error('watchlist save failed', err.status) });
+   }
+ 
+   ngOnDestroy() {
+     window.removeEventListener('message', this.onMessage);
+-    document.removeEventListener('keydown', this.onKeyDown);
+-    clearTimeout(this.navTimer);
++
+   }
+ 
+   private onMessage = (event: MessageEvent) => {
+     if (event.origin !== 'https://vixsrc.to') return;
+     const msg = event.data;
+     if (!msg || msg.type !== 'PLAYER_EVENT') return;
+     const data = msg.data || msg.event || msg;
+     if (data.event === 'timeupdate') {
+       this.watchlist.upsert(this.tmdbId, {
+         status: 'watching', lastSeason: this.type === 'tv' ? this.season : null, lastEpisode: this.type === 'tv' ? this.episode : null, resumeTimeSeconds: Math.floor(data.currentTime)
+diff --git a/frontend/src/app/models/wishlist-item.model.ts b/frontend/src/app/models/wishlist-item.model.ts
+new file mode 100644
+index 0000000..d73bea6
+--- /dev/null
++++ b/frontend/src/app/models/wishlist-item.model.ts
+@@ -0,0 +1,8 @@
++export interface WishlistItem {
++  id: number;
++  tmdbId: number;
++  title: string;
++  posterPath: string | null;
++  type: 'movie' | 'tv';
++  addedAt: string;
++}

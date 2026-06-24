@@ -199,7 +199,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.modalService.open({
       tmdbId: r.tmdbId,
       type: r.type,
-      status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
+      status: wl ? wl.status : 'unwatched',
     });
   }
 
@@ -223,13 +223,16 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   loadWishlistItems() {
-    this.wishlistService.getAll().subscribe(list => {
-      this.wishlistItems = list;
-      this.wishlistMap.clear();
-      for (const item of list) {
-        this.wishlistMap.set(item.tmdbId, item);
-      }
-      this.cdr.detectChanges();
+    this.wishlistService.getAll().subscribe({
+      next: (list) => {
+        this.wishlistItems = list;
+        this.wishlistMap.clear();
+        for (const item of list) {
+          this.wishlistMap.set(item.tmdbId, item);
+        }
+        this.cdr.detectChanges();
+      },
+      error: () => {},
     });
   }
 

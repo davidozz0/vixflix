@@ -6,5 +6,6 @@ CREATE TABLE `wishlist` (
 	`poster_path` text,
 	`type` text DEFAULT 'movie' NOT NULL,
 	`added_at` integer DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`profile_id`) REFERENCES `profiles`(`id`) ON UPDATE no action ON DELETE cascade,
+	UNIQUE(`profile_id`, `tmdb_id`)
 );

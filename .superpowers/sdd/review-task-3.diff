@@ -1,0 +1,54 @@
+﻿
+# Review package: 1ae751d..18276cb
+
+## Commits
+18276cb feat: add WishlistItem model and WishlistService
+
+## Files changed
+ frontend/src/app/core/services/wishlist.service.ts | 22 ++++++++++++++++++++++
+ frontend/src/app/models/wishlist-item.model.ts     |  8 ++++++++
+ 2 files changed, 30 insertions(+)
+
+## Diff
+diff --git a/frontend/src/app/core/services/wishlist.service.ts b/frontend/src/app/core/services/wishlist.service.ts
+new file mode 100644
+index 0000000..7268d12
+--- /dev/null
++++ b/frontend/src/app/core/services/wishlist.service.ts
+@@ -0,0 +1,22 @@
++import { Injectable, inject } from '@angular/core';
++import { HttpClient } from '@angular/common/http';
++import { Observable } from 'rxjs';
++import { WishlistItem } from '../../models/wishlist-item.model';
++
++@Injectable({ providedIn: 'root' })
++export class WishlistService {
++  private http = inject(HttpClient);
++  private api = '/api/wishlist';
++
++  getAll(): Observable<WishlistItem[]> {
++    return this.http.get<WishlistItem[]>(this.api, { withCredentials: true });
++  }
++
++  add(tmdbId: number, item: { title: string; posterPath: string | null; type: string }): Observable<any> {
++    return this.http.post(`${this.api}/${tmdbId}`, item, { withCredentials: true });
++  }
++
++  remove(tmdbId: number): Observable<any> {
++    return this.http.delete(`${this.api}/${tmdbId}`, { withCredentials: true });
++  }
++}
+diff --git a/frontend/src/app/models/wishlist-item.model.ts b/frontend/src/app/models/wishlist-item.model.ts
+new file mode 100644
+index 0000000..d73bea6
+--- /dev/null
++++ b/frontend/src/app/models/wishlist-item.model.ts
+@@ -0,0 +1,8 @@
++export interface WishlistItem {
++  id: number;
++  tmdbId: number;
++  title: string;
++  posterPath: string | null;
++  type: 'movie' | 'tv';
++  addedAt: string;
++}
