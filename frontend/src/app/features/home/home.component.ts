@@ -199,7 +199,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.modalService.open({
       tmdbId: r.tmdbId,
       type: r.type,
-      status: wl ? wl.status : 'unwatched',
+      status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
     });
   }
 
