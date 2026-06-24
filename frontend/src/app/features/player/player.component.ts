@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -15,15 +15,15 @@ import { Episode } from '../../models/content.model';
       <iframe *ngIf="src" [src]="src" style="border:none; width:100%; height:100%; display:block;" allowfullscreen></iframe>
       <div *ngIf="!src" style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-secondary);">Caricamento...</div>
       <div style="position:absolute; inset:0; pointer-events:none; z-index:1;">
-        <button routerLink="/home" class="nav-btn nav-home" [style.opacity]="showNav ? 1 : 0" [style.pointer-events]="showNav ? 'auto' : 'none'">
+        <button routerLink="/home" class="nav-btn nav-home">
           <span class="nav-arrow">⌂</span>
           <span class="nav-label">home</span>
         </button>
-        <button *ngIf="src && type==='tv' && hasPrev" (click)="goPrev()" class="nav-btn nav-left" [style.opacity]="showNav ? 1 : 0" [style.pointer-events]="showNav ? 'auto' : 'none'">
+        <button *ngIf="src && type==='tv' && hasPrev" (click)="goPrev()" class="nav-btn nav-left">
           <span class="nav-arrow">◀</span>
           <span class="nav-label">prev</span>
         </button>
-        <button *ngIf="src && type==='tv' && hasNext" (click)="goNext()" class="nav-btn nav-right" [style.opacity]="showNav ? 1 : 0" [style.pointer-events]="showNav ? 'auto' : 'none'">
+        <button *ngIf="src && type==='tv' && hasNext" (click)="goNext()" class="nav-btn nav-right">
           <span class="nav-arrow">▶</span>
           <span class="nav-label">next</span>
         </button>
@@ -62,8 +62,6 @@ export class PlayerComponent implements OnInit, OnDestroy {
   private episodes: Episode[] = [];
   hasPrev = false;
   hasNext = false;
-  showNav = true;
-  private navTimer: any;
   private prevEpisode?: number;
   private nextEpisode?: number;
 
@@ -87,16 +85,10 @@ export class PlayerComponent implements OnInit, OnDestroy {
     });
 
     window.addEventListener('message', this.onMessage);
-    document.addEventListener('keydown', this.onKeyDown);
-    this.startHideTimer();
   }
 
-  @HostListener('document:mousemove')
-  onMouseMove() { this.showNav = true; this.cdr.detectChanges(); clearTimeout(this.navTimer); this.startHideTimer(); }
 
-  private onKeyDown = () => { this.showNav = true; this.cdr.detectChanges(); clearTimeout(this.navTimer); this.startHideTimer(); };
 
-  private startHideTimer() { this.navTimer = setTimeout(() => { this.showNav = false; this.cdr.detectChanges(); }, 1000); }
 
   private updateNav() {
     if (this.episodes.length === 0) return;
@@ -131,8 +123,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     window.removeEventListener('message', this.onMessage);
-    document.removeEventListener('keydown', this.onKeyDown);
-    clearTimeout(this.navTimer);
+
   }
 
   private onMessage = (event: MessageEvent) => {
