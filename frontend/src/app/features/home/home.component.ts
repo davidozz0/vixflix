@@ -58,10 +58,16 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
       <div *ngIf="recommended.length" style="margin-bottom:1.5rem;">
         <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Consigliati per te</h3>
         <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;" class="thin-scroll">
-          <div *ngFor="let r of recommended" (click)="onRecommendedClick(r)" style="cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; overflow:hidden;" class="card">
-            <img *ngIf="r.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + r.posterPath" style="width:100%; display:block;" />
-            <div *ngIf="!r.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
-            <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.title }}</div>
+          <div *ngFor="let r of recommended" style="position:relative; cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; overflow:hidden;" class="card">
+            <div (click)="onRecommendedClick(r)">
+              <img *ngIf="r.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + r.posterPath" style="width:100%; display:block;" />
+              <div *ngIf="!r.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
+              <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.title }}</div>
+            </div>
+            <button (click)="toggleWishlistFromRecommended(r, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;"
+                    [style.background]="isInWishlist(r.tmdbId) ? 'rgba(76,175,80,0.85)' : 'rgba(0,0,0,0.7)'">
+              {{ isInWishlist(r.tmdbId) ? '✓' : '+' }}
+            </button>
           </div>
         </div>
       </div>
@@ -257,6 +263,26 @@ export class HomeComponent implements OnInit, OnDestroy {
         title: c.title,
         posterPath: c.posterPath,
         type: c.type,
+      }).subscribe(() => {
+        this.loadWishlistItems();
+      });
+    }
+  }
+
+  async toggleWishlistFromRecommended(r: RecommendedContent, event: Event) {
+    event.stopPropagation();
+    event.preventDefault();
+    if (this.isInWishlist(r.tmdbId)) {
+      const ok = await this.dialogService.confirm(`Rimuovere "${r.title}" dalla wishlist?`);
+      if (!ok) return;
+      this.wishlistService.remove(r.tmdbId).subscribe(() => {
+        this.loadWishlistItems();
+      });
+    } else {
+      this.wishlistService.add(r.tmdbId, {
+        title: r.title,
+        posterPath: r.posterPath,
+        type: r.type,
       }).subscribe(() => {
         this.loadWishlistItems();
       });
