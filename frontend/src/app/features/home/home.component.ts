@@ -118,13 +118,16 @@ export class HomeComponent implements OnInit, OnDestroy {
       const newType = (params.get('type') as 'movie' | 'tv') || 'movie';
       const q = params.get('q') || '';
       const newGenre = params.get('genre') || '';
-      if (newType !== this.type || q !== this.lastQ || newGenre !== this.genre) {
+      const changed = newType !== this.type || q !== this.lastQ || newGenre !== this.genre;
+      if (changed) {
         this.type = newType;
         this.lastQ = q;
         this.genre = newGenre;
         this.page = 1;
         this.hasMore = true;
         this.contents = [];
+      }
+      if (this.contents.length === 0) {
         if (q.length >= 3) {
           this.isSearching = true;
           this.contentService.search(q, this.page).subscribe(data => {
