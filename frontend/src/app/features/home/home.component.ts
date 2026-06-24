@@ -11,6 +11,8 @@ import { Content } from '../../models/content.model';
 import { ContinueWatching } from '../../models/continue-watching.model';
 import { WatchlistEntry } from '../../models/watchlist.model';
 import { RecommendedContent } from '../../models/recommended-content.model';
+import { WishlistService } from '../../core/services/wishlist.service';
+import { WishlistItem } from '../../models/wishlist-item.model';
 import { ContentModalComponent } from '../content-modal/content-modal.component';
 
 @Component({
@@ -39,6 +41,20 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
         </div>
       </div>
 
+      <div *ngIf="wishlistItems.length" style="margin-bottom:1.5rem;">
+        <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Wishlist</h3>
+        <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;" class="thin-scroll">
+          <div *ngFor="let w of wishlistItems" style="position:relative; cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; overflow:hidden;" class="card">
+            <div (click)="onWishlistClick(w)">
+              <img *ngIf="w.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + w.posterPath" style="width:100%; display:block;" />
+              <div *ngIf="!w.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
+              <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ w.title }}</div>
+            </div>
+            <button (click)="removeFromWishlist(w, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-size:14px; line-height:1;">✕</button>
+          </div>
+        </div>
+      </div>
+
       <div *ngIf="recommended.length" style="margin-bottom:1.5rem;">
         <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Consigliati per te</h3>
         <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;" class="thin-scroll">
@@ -61,9 +77,9 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
             <div *ngIf="!c.posterPath" style="width:100%; aspect-ratio:2/3; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
             <div style="font-size:0.9rem; padding:0.5rem; color:var(--text-primary);">{{ c.title }}</div>
           </div>
-          <button (click)="addToWatchlist(c, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;"
-                  [style.background]="isInWatchlist(c.tmdbId) ? 'rgba(76,175,80,0.85)' : 'rgba(0,0,0,0.7)'">
-            {{ isInWatchlist(c.tmdbId) ? '✓' : '+' }}
+          <button (click)="toggleWishlist(c, $event)" style="position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.7); color:#fff; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;"
+                  [style.background]="isInWishlist(c.tmdbId) ? 'rgba(76,175,80,0.85)' : 'rgba(0,0,0,0.7)'">
+            {{ isInWishlist(c.tmdbId) ? '✓' : '+' }}
           </button>
         </div>
       </div>
@@ -79,9 +95,12 @@ export class HomeComponent implements OnInit, OnDestroy {
   private modalService = inject(ModalService);
   private dialogService = inject(DialogService);
   private profileService = inject(ProfileService);
+  private wishlistService = inject(WishlistService);
   private cdr = inject(ChangeDetectorRef);
   private queryParamsSub!: Subscription;
   private watchlistMap = new Map<number, WatchlistEntry>();
+  wishlistItems: WishlistItem[] = [];
+  private wishlistMap = new Map<number, WishlistItem>();
   contents: Content[] = [];
   continueList: ContinueWatching[] = [];
   recommended: RecommendedContent[] = [];
@@ -119,9 +138,10 @@ export class HomeComponent implements OnInit, OnDestroy {
         }
       }
     });
-    this.loadWatchlistMap();
+    this.loadWatchlistStatusMap();
     this.loadContinueWatching();
     this.loadRecommended();
+    this.loadWishlistItems();
   }
 
   ngOnDestroy() {
@@ -155,7 +175,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     });
   }
 
-  loadWatchlistMap() {
+  loadWatchlistStatusMap() {
     this.watchlistService.getAll().subscribe(list => {
       this.watchlistMap.clear();
       for (const e of list) {
@@ -202,32 +222,58 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
   }
 
-  isInWatchlist(tmdbId: number): boolean {
-    return this.watchlistMap.has(tmdbId);
+  loadWishlistItems() {
+    this.wishlistService.getAll().subscribe(list => {
+      this.wishlistItems = list;
+      this.wishlistMap.clear();
+      for (const item of list) {
+        this.wishlistMap.set(item.tmdbId, item);
+      }
+      this.cdr.detectChanges();
+    });
   }
 
-  async addToWatchlist(c: Content, event: Event) {
+  isInWishlist(tmdbId: number): boolean {
+    return this.wishlistMap.has(tmdbId);
+  }
+
+  async toggleWishlist(c: Content, event: Event) {
     event.stopPropagation();
     event.preventDefault();
-    if (this.isInWatchlist(c.tmdbId)) {
-      const ok = await this.dialogService.confirm(`Rimuovere "${c.title}" dalla watchlist?`);
+    if (this.isInWishlist(c.tmdbId)) {
+      const ok = await this.dialogService.confirm(`Rimuovere "${c.title}" dalla wishlist?`);
       if (!ok) return;
-      this.watchlistService.remove(c.tmdbId).subscribe(() => {
-        this.loadWatchlistMap();
-        this.loadContinueWatching();
+      this.wishlistService.remove(c.tmdbId).subscribe(() => {
+        this.loadWishlistItems();
       });
     } else {
-      this.watchlistService.upsert(c.tmdbId, {
-        status: 'watching',
-        lastSeason: c.type === 'tv' ? 1 : null,
-        lastEpisode: c.type === 'tv' ? 1 : null,
-        resumeTimeSeconds: 0
+      this.wishlistService.add(c.tmdbId, {
+        title: c.title,
+        posterPath: c.posterPath,
+        type: c.type,
       }).subscribe(() => {
-        this.loadWatchlistMap();
-        this.loadContinueWatching();
-        this.loadRecommended();
+        this.loadWishlistItems();
       });
     }
+  }
+
+  onWishlistClick(w: WishlistItem) {
+    const wl = this.watchlistMap.get(w.tmdbId);
+    this.modalService.open({
+      tmdbId: w.tmdbId,
+      type: w.type,
+      status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
+    });
+  }
+
+  async removeFromWishlist(w: WishlistItem, event: Event) {
+    event.stopPropagation();
+    event.preventDefault();
+    const ok = await this.dialogService.confirm(`Rimuovere "${w.title}" dalla wishlist?`);
+    if (!ok) return;
+    this.wishlistService.remove(w.tmdbId).subscribe(() => {
+      this.loadWishlistItems();
+    });
   }
 
   async removeContinue(c: ContinueWatching, event: Event) {
@@ -236,7 +282,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     const ok = await this.dialogService.confirm(`Rimuovere "${c.title}" dalla lista?`);
     if (!ok) return;
     this.watchlistService.remove(c.tmdbId).subscribe(() => {
-      this.loadWatchlistMap();
+      this.loadWatchlistStatusMap();
       this.loadContinueWatching();
     });
   }
