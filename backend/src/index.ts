@@ -418,11 +418,11 @@ app.delete("/api/wishlist/:tmdbId", auth, (req: AuthRequest, res) => {
   res.json({ ok: true });
 });
 
-// Catch-all: serve index.html per Angular routing (solo GET non-API)
+// Catch-all middleware: serve index.html per Angular routing (solo GET non-API)
 if (existsSync(distPath)) {
-  app.get("*", (req, res) => {
-    if (req.path.startsWith("/api")) return res.status(404).json({ error: "Not found" });
-    res.sendFile(join(distPath, "index.html"));
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api")) return next();
+    res.sendFile(join(distPath, "index.html"), (err) => { if (err) next(err); });
   });
 }
 
