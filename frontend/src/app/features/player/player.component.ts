@@ -16,8 +16,8 @@ import { Episode } from '../../models/content.model';
       <div *ngIf="!src" style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-secondary);">Caricamento...</div>
       <div style="position:absolute; inset:0; pointer-events:none; z-index:1;">
         <div class="title-bar" *ngIf="contentTitle">
-          <span *ngIf="type==='movie'">{{ contentTitle }}</span>
-          <span *ngIf="type==='tv'">S{{ season }} E{{ episode }} - {{ episodeName }}</span>
+          <span>{{ contentTitle }}</span>
+          <span *ngIf="type==='tv'"> · S{{ season }} E{{ episode }}{{ episodeName ? ' · ' + episodeName : '' }}</span>
         </div>
         <button routerLink="/home" class="nav-btn nav-home">
           <span class="nav-arrow">⌂</span>
@@ -51,12 +51,14 @@ import { Episode } from '../../models/content.model';
     .nav-label { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
     .nav-btn:hover { background: rgba(0,0,0,0.8); }
     .title-bar {
-      position: fixed; top: 0; left: 50%; transform: translateX(-50%);
-      z-index: 30; padding: 8px 20px;
+      position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+      z-index: 30; padding: 12px 20px;
       background: rgba(0,0,0,0.5); color: #fff;
-      border-radius: 0 0 8px 8px;
+      border-radius: 8px;
       font-size: 14px; pointer-events: none;
       white-space: nowrap;
+      backdrop-filter: blur(4px);
+      display: flex; gap: 6px;
     }
   `]
 })
