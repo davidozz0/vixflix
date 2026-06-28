@@ -293,19 +293,34 @@ app.get("/api/watchlist/continue", auth, async (req: AuthRequest, res) => {
 app.get("/api/watchlist/recommended", auth, async (req: AuthRequest, res) => {
   try {
     const profileId = req.profileId!;
-    const recent = db.select().from(watchlist)
+
+    // Watchlist: ultimi 5 watching/watched
+    const recentWatchlist = db.select().from(watchlist)
       .where(and(eq(watchlist.profileId, profileId), inArray(watchlist.status, ["watched", "watching"])))
-      .orderBy(desc(watchlist.updatedAt))
-      .limit(5).all();
-    if (recent.length === 0) return res.json([]);
-    const watchlistIds = new Set(db.select({ tmdbId: watchlist.tmdbId }).from(watchlist).where(eq(watchlist.profileId, profileId)).all().map(r => r.tmdbId));
+      .orderBy(desc(watchlist.updatedAt)).limit(5).all();
+
+    // Wishlist: ultimi 5 items
+    const recentWishlist = db.select().from(wishlist)
+      .where(eq(wishlist.profileId, profileId))
+      .orderBy(desc(wishlist.addedAt)).limit(5).all();
+
+    if (recentWatchlist.length === 0 && recentWishlist.length === 0) return res.json([]);
+
+    // Set di esclusione: contenuti gia' in watchlist o wishlist
+    const allWatchlistIds = new Set(db.select({ tmdbId: watchlist.tmdbId }).from(watchlist).where(eq(watchlist.profileId, profileId)).all().map(r => r.tmdbId));
+    const allWishlistIds = new Set(db.select({ tmdbId: wishlist.tmdbId }).from(wishlist).where(eq(wishlist.profileId, profileId)).all().map(r => r.tmdbId));
+    const excludeIds = new Set([...allWatchlistIds, ...allWishlistIds]);
+
+    // Frequenza raccomandazioni
     const freq = new Map<number, { count: number; title: string; posterPath: string | null; type: string }>();
-    for (const entry of recent) {
+
+    // Processa watchlist items
+    for (const entry of recentWatchlist) {
       const type = entry.lastEpisode ? "tv" : "movie";
       try {
         const data = await tmdb(`/${type}/${entry.tmdbId}/recommendations`, {});
         for (const r of (data.results || [])) {
-          if (watchlistIds.has(r.id)) continue;
+          if (excludeIds.has(r.id)) continue;
           const existing = freq.get(r.id);
           if (existing) { existing.count++; } else {
             freq.set(r.id, { count: 1, title: r.title || r.name, posterPath: r.poster_path, type: r.title ? "movie" : "tv" });
@@ -313,6 +328,21 @@ app.get("/api/watchlist/recommended", auth, async (req: AuthRequest, res) => {
         }
       } catch { /* skip */ }
     }
+
+    // Processa wishlist items
+    for (const entry of recentWishlist) {
+      try {
+        const data = await tmdb(`/${entry.type}/${entry.tmdbId}/recommendations`, {});
+        for (const r of (data.results || [])) {
+          if (excludeIds.has(r.id)) continue;
+          const existing = freq.get(r.id);
+          if (existing) { existing.count++; } else {
+            freq.set(r.id, { count: 1, title: r.title || r.name, posterPath: r.poster_path, type: r.title ? "movie" : "tv" });
+          }
+        }
+      } catch { /* skip */ }
+    }
+
     const sorted = Array.from(freq.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, 20).map(([tmdbId, v]) => ({ tmdbId, ...v }));
     res.json(sorted);
   } catch (e: any) {
