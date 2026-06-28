@@ -1,12 +1,19 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { WishlistItem } from '../../models/wishlist-item.model';
 
 @Injectable({ providedIn: 'root' })
 export class WishlistService {
   private http = inject(HttpClient);
   private api = '/api/wishlist';
+
+  private wishlistChangedSource = new Subject<void>();
+  wishlistChanged$ = this.wishlistChangedSource.asObservable();
+
+  notifyWishlistChanged(): void {
+    this.wishlistChangedSource.next();
+  }
 
   getAll(): Observable<WishlistItem[]> {
     return this.http.get<WishlistItem[]>(this.api, { withCredentials: true });
