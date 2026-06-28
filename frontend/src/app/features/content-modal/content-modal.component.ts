@@ -5,6 +5,7 @@ import { Subscription } from 'rxjs';
 import { ModalService } from '../../core/services/modal.service';
 import { ContentService } from '../../core/services/content.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
+import { WishlistService } from '../../core/services/wishlist.service';
 import { ContentDetail, Episode } from '../../models/content.model';
 import { ModalData } from '../../models/modal-data.model';
 
@@ -62,6 +63,9 @@ import { ModalData } from '../../models/modal-data.model';
               <span *ngIf="content.type === 'tv' && selectedSeason && selectedEpisode">
                 S{{ selectedSeason }}E{{ selectedEpisode }}
               </span>
+            </button>
+            <button class="wl-btn" (click)="toggleWishlist()" [disabled]="wishlistLoading">
+              {{ isInWishlist ? '✕ Rimuovi da wishlist' : '+ Aggiungi a wishlist' }}
             </button>
           </div>
         </div>
@@ -164,6 +168,14 @@ import { ModalData } from '../../models/modal-data.model';
       border-radius: 8px; cursor: pointer; font-weight: 600;
     }
     .watch-btn:hover { opacity: 0.9; }
+    .wl-btn {
+      width: 100%; padding: 0.75rem; font-size: 1rem;
+      background: transparent; color: var(--accent);
+      border: 1px solid var(--accent); border-radius: 8px;
+      cursor: pointer; font-weight: 600; margin-top: 0.5rem;
+    }
+    .wl-btn:hover { background: var(--accent); color: #fff; }
+    .wl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .loading {
       padding: 3rem; text-align: center; color: var(--text-secondary);
     }
@@ -173,6 +185,7 @@ export class ContentModalComponent implements OnDestroy {
   private modalService = inject(ModalService);
   private contentService = inject(ContentService);
   private watchlist = inject(WatchlistService);
+  private wishlistService = inject(WishlistService);
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
   private sub: Subscription;
@@ -181,6 +194,8 @@ export class ContentModalComponent implements OnDestroy {
   content?: ContentDetail;
   private data?: ModalData;
   isWatched = false;
+  isInWishlist = false;
+  wishlistLoading = false;
   selectedSeason = 1;
   selectedEpisode?: number;
   episodes: Episode[] = [];
@@ -190,6 +205,8 @@ export class ContentModalComponent implements OnDestroy {
       if (!data) { this.visible = false; return; }
       this.data = data;
       this.isWatched = data.status === 'watched';
+      this.isInWishlist = data.isInWishlist ?? false;
+      this.wishlistLoading = false;
       this.content = undefined;
       this.selectedSeason = 1;
       this.selectedEpisode = undefined;
@@ -214,6 +231,38 @@ export class ContentModalComponent implements OnDestroy {
       this.episodes = data.episodes;
       this.cdr.detectChanges();
     });
+  }
+
+  async toggleWishlist() {
+    if (this.wishlistLoading || !this.data) return;
+    this.wishlistLoading = true;
+    if (this.isInWishlist) {
+      this.wishlistService.remove(this.data.tmdbId).subscribe({
+        next: () => {
+          this.isInWishlist = false;
+          this.wishlistLoading = false;
+          this.wishlistService.notifyWishlistChanged();
+          this.cdr.detectChanges();
+        },
+        error: () => { this.wishlistLoading = false; },
+      });
+    } else {
+      const detail = this.content;
+      if (!detail) { this.wishlistLoading = false; return; }
+      this.wishlistService.add(this.data.tmdbId, {
+        title: detail.title,
+        posterPath: detail.posterPath,
+        type: detail.type,
+      }).subscribe({
+        next: () => {
+          this.isInWishlist = true;
+          this.wishlistLoading = false;
+          this.wishlistService.notifyWishlistChanged();
+          this.cdr.detectChanges();
+        },
+        error: () => { this.wishlistLoading = false; },
+      });
+    }
   }
 
   play() {
