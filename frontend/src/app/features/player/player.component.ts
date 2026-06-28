@@ -70,8 +70,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
   src?: SafeResourceUrl;
   type: 'movie' | 'tv' = 'movie';
   private tmdbId = 0;
-  private season = 1;
-  private episode = 1;
+  season = 1;
+  episode = 1;
   private episodes: Episode[] = [];
   hasPrev = false;
   hasNext = false;
@@ -101,9 +101,13 @@ export class PlayerComponent implements OnInit, OnDestroy {
       error: () => this.loadPlayer(0)
     });
 
-    this.contentService.detail(this.tmdbId, this.type).subscribe(detail => {
-      this.contentTitle = detail.title;
-      this.cdr.detectChanges();
+    this.contentService.detail(this.tmdbId, this.type).subscribe({
+      next: (detail) => {
+        console.log('Player content detail loaded', detail.title);
+        this.contentTitle = detail.title || '';
+        this.cdr.detectChanges();
+      },
+      error: (err) => console.error('Failed to load content title', err),
     });
 
     window.addEventListener('message', this.onMessage);
