@@ -61,10 +61,9 @@ import { Episode } from '../../models/content.model';
       display: flex; gap: 6px;
     }
     @media (max-width: 600px) {
-      .nav-btn { width: 60px; height: 80px; }
-      .nav-home { width: 60px; height: 40px; }
-      .nav-arrow { font-size: 22px; }
-      .title-bar { font-size: 12px; max-width: 90vw; overflow: hidden; text-overflow: ellipsis; }
+      .nav-home { width: 60px; height: 44px; top: 96px; }
+      .nav-home .nav-arrow { font-size: 24px; }
+      .title-bar { top: 96px; font-size: 12px; max-width: 90vw; overflow: hidden; text-overflow: ellipsis; }
     }
   `]
 })
