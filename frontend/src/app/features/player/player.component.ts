@@ -77,7 +77,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
   hasNext = false;
   private prevEpisode?: number;
   private nextEpisode?: number;
-  contentTitle = '';
+  contentTitle = this.route.snapshot.queryParamMap.get('title') || '';
   episodeName = '';
 
   ngOnInit() {
@@ -101,8 +101,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
       error: () => this.loadPlayer(0)
     });
 
-    this.contentTitle = this.route.snapshot.queryParamMap.get('title') || '';
-    this.cdr.detectChanges();
+
 
     window.addEventListener('message', this.onMessage);
   }
