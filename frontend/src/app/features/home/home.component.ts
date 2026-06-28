@@ -104,6 +104,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   private wishlistService = inject(WishlistService);
   private cdr = inject(ChangeDetectorRef);
   private queryParamsSub!: Subscription;
+  private wishlistChangedSub!: Subscription;
   private watchlistMap = new Map<number, WatchlistEntry>();
   wishlistItems: WishlistItem[] = [];
   private wishlistMap = new Map<number, WishlistItem>();
@@ -151,10 +152,14 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.loadContinueWatching();
     this.loadRecommended();
     this.loadWishlistItems();
+    this.wishlistChangedSub = this.wishlistService.wishlistChanged$.subscribe(() => {
+      this.loadWishlistItems();
+    });
   }
 
   ngOnDestroy() {
     this.queryParamsSub.unsubscribe();
+    this.wishlistChangedSub.unsubscribe();
   }
 
   loadTrending() {
@@ -200,6 +205,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       tmdbId: c.tmdbId,
       type: c.type,
       status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
+      isInWishlist: this.isInWishlist(c.tmdbId),
     });
   }
 
@@ -209,6 +215,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       tmdbId: r.tmdbId,
       type: r.type,
       status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
+      isInWishlist: this.isInWishlist(r.tmdbId),
     });
   }
 
@@ -295,6 +302,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       tmdbId: w.tmdbId,
       type: w.type,
       status: (wl && wl.status === 'watched') ? 'watched' : 'unwatched',
+      isInWishlist: true,
     });
   }
 
