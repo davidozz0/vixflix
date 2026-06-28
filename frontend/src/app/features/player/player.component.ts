@@ -4,7 +4,7 @@ import { ActivatedRoute, RouterModule, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { WatchlistService } from '../../core/services/watchlist.service';
 import { ContentService } from '../../core/services/content.service';
-import { Episode } from '../../models/content.model';
+import { Episode, ContentDetail } from '../../models/content.model';
 
 @Component({
   selector: 'app-player',
@@ -15,6 +15,10 @@ import { Episode } from '../../models/content.model';
       <iframe *ngIf="src" [src]="src" style="border:none; width:100%; height:100%; display:block;" allowfullscreen></iframe>
       <div *ngIf="!src" style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-secondary);">Caricamento...</div>
       <div style="position:absolute; inset:0; pointer-events:none; z-index:1;">
+        <div class="title-bar" *ngIf="contentTitle">
+          <span *ngIf="type==='movie'">{{ contentTitle }}</span>
+          <span *ngIf="type==='tv'">S{{ season }} E{{ episode }} - {{ episodeName }}</span>
+        </div>
         <button routerLink="/home" class="nav-btn nav-home">
           <span class="nav-arrow">⌂</span>
           <span class="nav-label">home</span>
@@ -46,6 +50,14 @@ import { Episode } from '../../models/content.model';
     .nav-arrow { font-size: 38px; }
     .nav-label { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
     .nav-btn:hover { background: rgba(0,0,0,0.8); }
+    .title-bar {
+      position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+      z-index: 30; padding: 8px 20px;
+      background: rgba(0,0,0,0.5); color: #fff;
+      border-radius: 0 0 8px 8px;
+      font-size: 14px; pointer-events: none;
+      white-space: nowrap;
+    }
   `]
 })
 export class PlayerComponent implements OnInit, OnDestroy {
@@ -65,6 +77,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
   hasNext = false;
   private prevEpisode?: number;
   private nextEpisode?: number;
+  contentTitle = '';
+  episodeName = '';
 
   ngOnInit() {
     this.tmdbId = Number(this.route.snapshot.paramMap.get('tmdbId'));
@@ -77,12 +91,19 @@ export class PlayerComponent implements OnInit, OnDestroy {
       this.contentService.seasonEpisodes(this.tmdbId, this.season).subscribe(data => {
         this.episodes = data.episodes;
         this.updateNav();
+        const ep = data.episodes.find((e: Episode) => e.episodeNumber === this.episode);
+        this.episodeName = ep?.name || '';
       });
     }
 
     this.watchlist.getAll().subscribe({
       next: (list) => { const wl = list.find(e => e.tmdbId === this.tmdbId); this.loadPlayer(wl?.resumeTimeSeconds ?? 0); },
       error: () => this.loadPlayer(0)
+    });
+
+    this.contentService.detail(this.tmdbId, this.type).subscribe(detail => {
+      this.contentTitle = detail.title;
+      this.cdr.detectChanges();
     });
 
     window.addEventListener('message', this.onMessage);
@@ -106,7 +127,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
     this.episode = ep; this.hasPrev = false; this.hasNext = false;
     this.prevEpisode = undefined; this.nextEpisode = undefined;
     this.loadPlayer(0);
-    this.contentService.seasonEpisodes(this.tmdbId, this.season).subscribe(data => { this.episodes = data.episodes; this.updateNav(); });
+    this.contentService.seasonEpisodes(this.tmdbId, this.season).subscribe(data => { this.episodes = data.episodes; this.updateNav(); const ep = data.episodes.find((e: Episode) => e.episodeNumber === this.episode); this.episodeName = ep?.name || ''; });
   }
 
   private loadPlayer(startAt = 0) {
