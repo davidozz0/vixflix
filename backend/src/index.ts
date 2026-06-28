@@ -11,6 +11,7 @@ import { eq, and, desc, inArray, gt, lt, sql } from "drizzle-orm";
 dotenv.config();
 
 const app = express();
+app.set("trust proxy", true);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
@@ -48,7 +49,8 @@ async function auth(req: AuthRequest, res: Response, next: NextFunction) {
 }
 
 function getClientIp(req: Request): string {
-  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+  return req.ip
+    || (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
     || req.socket.remoteAddress
     || "";
 }
