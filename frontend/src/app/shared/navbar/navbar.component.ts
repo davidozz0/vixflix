@@ -52,6 +52,7 @@ import { Genre } from '../../models/genre.model';
       border: 1px solid var(--border);
       border-radius: 4px;
       font-size: 0.9rem;
+      width: 130px;
       max-width: 140px;
     }
     .search {
@@ -78,6 +79,23 @@ import { Genre } from '../../models/genre.model';
     .logout-btn:hover {
       color: var(--accent);
       border-color: var(--accent);
+    }
+    @media (max-width: 600px) {
+      nav { flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem; }
+      .brand { order: 1; }
+      .search { order: 2; flex: 1; min-width: 100px; width: auto; margin-left: 0; }
+      .logout-btn { order: 3; }
+      nav::after {
+        content: '';
+        order: 4;
+        width: 100%;
+        height: 0;
+        overflow: hidden;
+        margin-top: -0.5rem;
+        margin-bottom: -0.5rem;
+      }
+      .link { order: 5; }
+      .genre-select { order: 6; max-width: none; margin-left: auto; }
     }
   `]
 })

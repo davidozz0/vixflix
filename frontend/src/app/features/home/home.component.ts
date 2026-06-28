@@ -92,7 +92,14 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
       <div *ngIf="isLoading" style="text-align:center; padding:1rem; color:var(--text-secondary);">Caricamento...</div>
     </div>
     <app-content-modal></app-content-modal>
-  `
+  `,
+  styles: [`
+    @media (max-width: 600px) {
+      .card { min-width: 110px !important; max-width: 110px !important; }
+      [style*="grid-template-columns"] { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important; }
+      .card [style*="height:200px"] { height: 150px !important; }
+    }
+  `]
 })
 export class HomeComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);

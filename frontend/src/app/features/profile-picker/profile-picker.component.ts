@@ -11,7 +11,7 @@ import { ProfileService } from '../../core/services/profile.service';
   template: `
     <div class="page" style="display:flex; flex-direction:column; align-items:center; gap:1rem; padding:2rem;">
       <h1>VixFlix</h1>
-      <div style="display:flex; flex-direction:column; gap:0.5rem; width:300px;">
+      <div style="display:flex; flex-direction:column; gap:0.5rem; width:100%; max-width:300px;">
         <input [(ngModel)]="name" placeholder="Nome utente" style="padding:0.5rem; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); border-radius:4px;" />
         <input [(ngModel)]="pin" type="password" maxlength="4" placeholder="PIN" style="padding:0.5rem; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); border-radius:4px;" />
         <button (click)="login()" class="btn">Accedi</button>
