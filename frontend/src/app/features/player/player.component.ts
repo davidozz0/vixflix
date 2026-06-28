@@ -4,7 +4,7 @@ import { ActivatedRoute, RouterModule, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { WatchlistService } from '../../core/services/watchlist.service';
 import { ContentService } from '../../core/services/content.service';
-import { Episode, ContentDetail } from '../../models/content.model';
+import { Episode } from '../../models/content.model';
 
 @Component({
   selector: 'app-player',
@@ -101,14 +101,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
       error: () => this.loadPlayer(0)
     });
 
-    this.contentService.detail(this.tmdbId, this.type).subscribe({
-      next: (detail) => {
-        console.log('Player content detail loaded', detail.title);
-        this.contentTitle = detail.title || '';
-        this.cdr.detectChanges();
-      },
-      error: (err) => console.error('Failed to load content title', err),
-    });
+    this.contentTitle = this.route.snapshot.queryParamMap.get('title') || '';
+    this.cdr.detectChanges();
 
     window.addEventListener('message', this.onMessage);
   }

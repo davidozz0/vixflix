@@ -30,7 +30,7 @@ import { ContentModalComponent } from '../content-modal/content-modal.component'
         <h3 style="margin:0 0 0.75rem 0; color:var(--text-primary);">Continua a guardare</h3>
         <div style="display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem;" class="thin-scroll">
           <div *ngFor="let c of continueList" style="position:relative; cursor:pointer; min-width:140px; max-width:140px; flex-shrink:0; overflow:hidden;" class="card">
-            <div [routerLink]="['/watch', c.tmdbId]" [queryParams]="{type: c.type, season: c.lastSeason || 1, episode: c.lastEpisode || 1}">
+            <div [routerLink]="['/watch', c.tmdbId]" [queryParams]="{type: c.type, season: c.lastSeason || 1, episode: c.lastEpisode || 1, title: c.title}">
               <img *ngIf="c.posterPath" [src]="'https://image.tmdb.org/t/p/w185' + c.posterPath" style="width:100%; display:block;" />
               <div *ngIf="!c.posterPath" style="width:100%; height:200px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:0.8rem;">No poster</div>
               <div style="font-size:0.85rem; padding:0.5rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ c.title }}</div>

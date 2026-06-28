@@ -81,7 +81,7 @@ export class MediaDetailComponent implements OnInit {
     if (!this.content) return;
     const s = this.watchlistEntry?.lastSeason ?? 1;
     const e = this.watchlistEntry?.lastEpisode ?? 1;
-    this.router.navigate(['/watch', this.content.tmdbId], { queryParams: { type: 'tv', season: s, episode: e } });
+    this.router.navigate(['/watch', this.content.tmdbId], { queryParams: { type: 'tv', season: s, episode: e, title: this.content.title } });
   }
 
   toggleSeason(seasonNumber: number) {
@@ -98,6 +98,6 @@ export class MediaDetailComponent implements OnInit {
 
   playEpisode(season: number, episode: number) {
     if (!this.content) return;
-    this.router.navigate(['/watch', this.content.tmdbId], { queryParams: { type: 'tv', season, episode } });
+    this.router.navigate(['/watch', this.content.tmdbId], { queryParams: { type: 'tv', season, episode, title: this.content.title } });
   }
 }

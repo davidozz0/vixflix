@@ -268,7 +268,7 @@ export class ContentModalComponent implements OnDestroy {
   play() {
     if (!this.data) return;
     this.visible = false;
-    const qp: any = { type: this.data.type };
+    const qp: any = { type: this.data.type, title: this.content?.title || '' };
     if (this.content?.type === 'tv') {
       qp.season = this.selectedSeason;
       qp.episode = this.selectedEpisode || this.episodes[0]?.episodeNumber || 1;
