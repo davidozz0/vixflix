@@ -9,3 +9,4 @@ dist/
 frontend/.angular/
 backend/dist/
 backend/drizzle.config.js
+.superpowers/
