@@ -233,7 +233,7 @@ export class ContentModalComponent implements OnDestroy {
     });
   }
 
-  async toggleWishlist() {
+  toggleWishlist() {
     if (this.wishlistLoading || !this.data) return;
     this.wishlistLoading = true;
     if (this.isInWishlist) {
@@ -244,7 +244,7 @@ export class ContentModalComponent implements OnDestroy {
           this.wishlistService.notifyWishlistChanged();
           this.cdr.detectChanges();
         },
-        error: () => { this.wishlistLoading = false; },
+        error: () => { this.wishlistLoading = false; this.cdr.detectChanges(); },
       });
     } else {
       const detail = this.content;
@@ -260,7 +260,7 @@ export class ContentModalComponent implements OnDestroy {
           this.wishlistService.notifyWishlistChanged();
           this.cdr.detectChanges();
         },
-        error: () => { this.wishlistLoading = false; },
+        error: () => { this.wishlistLoading = false; this.cdr.detectChanges(); },
       });
     }
   }
