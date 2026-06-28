@@ -36,4 +36,8 @@ export class ContentService {
   genres(type: 'movie' | 'tv'): Observable<Genre[]> {
     return this.http.get<Genre[]>(`${API_URL}/genres`, { params: { type } });
   }
+
+  similar(tmdbId: number, type: 'movie' | 'tv'): Observable<{ tmdbId: number; title: string; posterPath: string | null; type: string }[]> {
+    return this.http.get<{ tmdbId: number; title: string; posterPath: string | null; type: string }[]>(`${API_URL}/content/${tmdbId}/recommendations`, { params: { type } });
+  }
 }

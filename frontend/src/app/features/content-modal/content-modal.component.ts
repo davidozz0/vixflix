@@ -35,6 +35,24 @@ import { ModalData } from '../../models/modal-data.model';
               <span *ngFor="let g of content.genres" class="pill">{{ g.name }}</span>
             </div>
             <p class="overview">{{ content.overview }}</p>
+
+            <div class="similar-section">
+              <button class="similar-toggle" (click)="toggleSimilar()">
+                <span>Contenuti simili</span>
+                <span class="chevron" [class.open]="similarOpen">▸</span>
+              </button>
+              <div *ngIf="similarOpen" class="similar-grid">
+                <div *ngFor="let item of similarItems" class="similar-card" (click)="openSimilar(item)">
+                  <div class="similar-poster-wrap">
+                    <img *ngIf="item.posterPath" [src]="'https://image.tmdb.org/t/p/w154' + item.posterPath" class="similar-poster" />
+                    <div *ngIf="!item.posterPath" class="similar-poster placeholder"></div>
+                    <button class="wl-icon" [class.in-wl]="similarWishlistIds.has(item.tmdbId)" (click)="$event.stopPropagation(); addSimilarToWishlist(item)" title="Aggiungi alla wishlist">{{ similarWishlistIds.has(item.tmdbId) ? '✓' : '+' }}</button>
+                  </div>
+                  <span class="similar-title">{{ item.title }}</span>
+                </div>
+              </div>
+              <div *ngIf="similarOpen && !similarItems.length" class="similar-empty">Nessun contenuto simile trovato</div>
+            </div>
           </div>
 
           <div *ngIf="content.type === 'tv' && content.seasons" class="episode-picker">
@@ -179,6 +197,58 @@ import { ModalData } from '../../models/modal-data.model';
     .loading {
       padding: 3rem; text-align: center; color: var(--text-secondary);
     }
+    .similar-section {
+      padding: 0 1.5rem 1rem; border-top: 1px solid var(--border); margin-top: 0.75rem; padding-top: 0.6rem;
+    }
+    .similar-toggle {
+      width: 100%; padding: 0.3rem 0;
+      background: transparent; color: var(--text-secondary);
+      border: none; border-radius: 0;
+      cursor: pointer; font-size: 0.85rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .similar-toggle:hover { color: var(--text-primary); }
+    .chevron { transition: transform 0.2s; font-size: 0.7rem; }
+    .chevron.open { transform: rotate(90deg); }
+    .similar-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem; margin-top: 0.75rem;
+    }
+    .similar-card {
+      cursor: pointer; text-align: center;
+      border-radius: 6px; overflow: hidden;
+      background: var(--bg-secondary);
+      transition: transform 0.15s;
+    }
+    .similar-card:hover { transform: scale(1.05); }
+    .similar-poster-wrap { position: relative; }
+    .similar-poster {
+      width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block;
+    }
+    .similar-poster.placeholder {
+      aspect-ratio: 2/3; background: var(--pill-bg);
+    }
+    .wl-icon {
+      position: absolute; top: 4px; right: 4px;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: rgba(0,0,0,0.6); color: #fff; border: none;
+      cursor: pointer; font-size: 14px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .similar-card:hover .wl-icon { opacity: 1; }
+    .wl-icon:hover { background: var(--accent); }
+    .wl-icon.in-wl { opacity: 1; background: var(--accent); }
+    .similar-title {
+      display: block; padding: 0.3rem 0.2rem;
+      font-size: 0.75rem; line-height: 1.2;
+      color: var(--text-secondary); overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+    .similar-empty {
+      padding: 1rem; text-align: center; color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
   `]
 })
 export class ContentModalComponent implements OnDestroy {
@@ -199,6 +269,10 @@ export class ContentModalComponent implements OnDestroy {
   selectedSeason = 1;
   selectedEpisode?: number;
   episodes: Episode[] = [];
+  similarItems: { tmdbId: number; title: string; posterPath: string | null; type: string }[] = [];
+  similarOpen = false;
+  similarLoaded = false;
+  similarWishlistIds = new Set<number>();
 
   constructor() {
     this.sub = this.modalService.data.subscribe(data => {
@@ -211,6 +285,10 @@ export class ContentModalComponent implements OnDestroy {
       this.selectedSeason = 1;
       this.selectedEpisode = undefined;
       this.episodes = [];
+      this.similarItems = [];
+      this.similarOpen = false;
+      this.similarLoaded = false;
+      this.similarWishlistIds = new Set();
       this.visible = true;
       this.contentService.detail(data.tmdbId, data.type).subscribe(detail => {
         this.content = detail;
@@ -278,5 +356,37 @@ export class ContentModalComponent implements OnDestroy {
 
   close() {
     this.modalService.close();
+  }
+
+  toggleSimilar() {
+    if (!this.similarLoaded && this.data) {
+      this.contentService.similar(this.data.tmdbId, this.data.type).subscribe(data => {
+        this.similarItems = data;
+        this.similarLoaded = true;
+        this.wishlistService.getAll().subscribe(wl => {
+          this.similarWishlistIds = new Set(wl.map(w => w.tmdbId));
+          this.similarOpen = true;
+          this.cdr.detectChanges();
+        });
+      });
+    } else {
+      this.similarOpen = !this.similarOpen;
+    }
+  }
+
+  openSimilar(item: { tmdbId: number; title: string; posterPath: string | null; type: string }) {
+    this.modalService.open({ tmdbId: item.tmdbId, type: item.type as 'movie' | 'tv', status: 'unwatched' });
+  }
+
+  addSimilarToWishlist(item: { tmdbId: number; title: string; posterPath: string | null; type: string }) {
+    if (this.similarWishlistIds.has(item.tmdbId)) return;
+    this.wishlistService.add(item.tmdbId, { title: item.title, posterPath: item.posterPath, type: item.type }).subscribe({
+      next: () => {
+        this.similarWishlistIds = new Set([...this.similarWishlistIds, item.tmdbId]);
+        this.wishlistService.notifyWishlistChanged();
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
   }
 }

@@ -242,6 +242,23 @@ app.get("/api/content/:tmdbId/season/:seasonNumber", async (req, res) => {
   }
 });
 
+app.get("/api/content/:tmdbId/recommendations", async (req, res) => {
+  try {
+    const tmdbId = Number(req.params.tmdbId);
+    const type = (req.query.type as string) || "movie";
+    const data = await tmdb(`/${type}/${tmdbId}/recommendations`, {});
+    const results = (data.results || []).slice(0, 8).map((r: any) => ({
+      tmdbId: r.id,
+      title: r.title || r.name,
+      posterPath: r.poster_path,
+      type: r.title ? "movie" : "tv",
+    }));
+    res.json(results);
+  } catch (e: any) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
 // Watchlist routes
 app.get("/api/watchlist", auth, (req: AuthRequest, res) => {
   const profileId = req.profileId!;
