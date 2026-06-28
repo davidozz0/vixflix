@@ -10,7 +10,7 @@ import { ConfirmDialogComponent } from './features/confirm-dialog/confirm-dialog
   imports: [RouterModule, NavbarComponent, ConfirmDialogComponent],
   template: `
     <div class="page">
-      <app-navbar *ngIf="showNavbar"></app-navbar>
+      <app-navbar [style.display]="showNavbar ? '' : 'none'"></app-navbar>
       <router-outlet></router-outlet>
       <app-confirm-dialog></app-confirm-dialog>
     </div>
