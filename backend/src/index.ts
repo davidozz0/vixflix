@@ -4,6 +4,9 @@ import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import bcryptjs from "bcryptjs";
 import crypto from "crypto";
+import { join, dirname } from "path";
+import { existsSync } from "fs";
+import { fileURLToPath } from "url";
 import { db } from "./db/index.js";
 import { profiles, sessions, loginLogs, watchlist, wishlist } from "./db/schema.js";
 import { eq, and, desc, inArray, gt, lt, sql } from "drizzle-orm";
@@ -13,6 +16,16 @@ dotenv.config();
 const app = express();
 app.set("trust proxy", true);
 app.use(cors({ origin: true, credentials: true }));
+
+// Serve frontend static files (production build)
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const distPath = join(__dirname, "..", "..", "frontend", "dist", "frontend", "browser");
+if (existsSync(distPath)) {
+  app.use(express.static(distPath));
+  console.log(`Serving frontend from ${distPath}`);
+} else {
+  console.log(`No frontend build at ${distPath}, API-only mode`);
+}
 app.use(express.json());
 app.use(cookieParser());
 
@@ -404,6 +417,14 @@ app.delete("/api/wishlist/:tmdbId", auth, (req: AuthRequest, res) => {
   db.delete(wishlist).where(and(eq(wishlist.profileId, profileId), eq(wishlist.tmdbId, tmdbId))).run();
   res.json({ ok: true });
 });
+
+// Catch-all: serve index.html per Angular routing (solo GET non-API)
+if (existsSync(distPath)) {
+  app.get("*", (req, res) => {
+    if (req.path.startsWith("/api")) return res.status(404).json({ error: "Not found" });
+    res.sendFile(join(distPath, "index.html"));
+  });
+}
 
 // Clean expired sessions hourly
 setInterval(() => {
