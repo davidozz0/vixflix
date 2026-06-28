@@ -4,6 +4,7 @@ import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription, debounceTime, distinctUntilChanged, filter } from 'rxjs';
 import { ContentService } from '../../core/services/content.service';
+import { ProfileService } from '../../core/services/profile.service';
 import { Genre } from '../../models/genre.model';
 
 @Component({
@@ -20,6 +21,7 @@ import { Genre } from '../../models/genre.model';
         <option *ngFor="let g of genres" [value]="g.id">{{ g.name }}</option>
       </select>
       <input [(ngModel)]="query" (ngModelChange)="onQueryChange($event)" placeholder="Cerca..." class="search" />
+      <button (click)="logout()" class="logout-btn">Esci</button>
     </nav>
   `,
   styles: [`
@@ -63,10 +65,25 @@ import { Genre } from '../../models/genre.model';
       width: 200px;
     }
     .search::placeholder { color: var(--text-secondary); }
+    .logout-btn {
+      padding: 0.4rem 0.8rem;
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+    .logout-btn:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
   `]
 })
 export class NavbarComponent implements OnInit, OnDestroy {
   private router = inject(Router);
+  private profileService = inject(ProfileService);
   private contentService = inject(ContentService);
   private search$ = new Subject<string>();
   private routerSub!: Subscription;
@@ -129,5 +146,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   onQueryChange(value: string) {
     this.search$.next(value);
+  }
+
+  logout() {
+    this.profileService.logout().subscribe({
+      next: () => this.router.navigate(['/']),
+      error: () => this.router.navigate(['/']),
+    });
   }
 }
