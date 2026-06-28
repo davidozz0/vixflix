@@ -46,11 +46,29 @@ async function main() {
     } else {
       console.error(`Utente "${name}" non trovato.`);
     }
+  } else if (cmd === "changepin") {
+    let name = process.argv[3];
+    let pin = process.argv[4];
+    if (!name) name = await ask("Nome utente: ");
+    const existing = db.select().from(profiles).where(eq(profiles.name, name)).all();
+    if (existing.length === 0) {
+      console.error(`Utente "${name}" non trovato.`);
+      process.exit(1);
+    }
+    if (!pin) pin = await ask("Nuovo PIN (4 cifre): ");
+    if (pin.length !== 4 || !/^\d+$/.test(pin)) {
+      console.error("Il PIN deve essere di 4 cifre numeriche.");
+      process.exit(1);
+    }
+    const pinHash = await bcryptjs.hash(pin, 10);
+    db.update(profiles).set({ pinHash }).where(eq(profiles.name, name)).run();
+    console.log(`✅ PIN di "${name}" aggiornato con successo.`);
   } else {
     console.log("VixFlix Admin CLI");
-    console.log("  npx tsx src/admin.ts add [nome] [pin]    Crea un nuovo utente");
-    console.log("  npx tsx src/admin.ts list                 Lista tutti gli utenti");
-    console.log("  npx tsx src/admin.ts delete [nome]        Elimina un utente");
+    console.log("  npx tsx src/admin.ts add [nome] [pin]         Crea un nuovo utente");
+    console.log("  npx tsx src/admin.ts list                      Lista tutti gli utenti");
+    console.log("  npx tsx src/admin.ts delete [nome]             Elimina un utente");
+    console.log("  npx tsx src/admin.ts changepin [nome] [pin]    Cambia PIN di un utente");
   }
 }
 

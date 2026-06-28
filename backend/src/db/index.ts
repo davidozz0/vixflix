@@ -13,15 +13,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const drizzleDir = join(__dirname, "..", "..", "drizzle");
 if (existsSync(drizzleDir)) {
   const files = readdirSync(drizzleDir).filter(f => f.endsWith(".sql")).sort();
+  let applied = 0;
   for (const file of files) {
     const sql = readFileSync(join(drizzleDir, file), "utf-8");
+    let changed = false;
     for (const stmt of sql.split("--> statement-breakpoint")) {
-      try { sqlite.exec(stmt); } catch (_) { /* already applied */ }
+      try { sqlite.exec(stmt); changed = true; } catch (_) { /* already applied */ }
     }
+    if (changed) applied++;
   }
-  console.log(`Migrations applied: ${files.length} file(s) from ${drizzleDir}`);
-} else {
-  console.log(`No drizzle/ at ${drizzleDir}, skipping migrations`);
+  if (applied > 0) console.log(`Migrations applied: ${applied} file(s) from ${drizzleDir}`);
 }
 
 export const db = drizzle(sqlite, { schema });

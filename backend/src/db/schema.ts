@@ -5,7 +5,7 @@ export const profiles = sqliteTable("profiles", {
   id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   pinHash: text("pin_hash").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(strftime('%s', 'now'))`),
 });
 
 export const sessions = sqliteTable("sessions", {
@@ -14,7 +14,7 @@ export const sessions = sqliteTable("sessions", {
   token: text("token").notNull(),
   ip: text("ip"),
   userAgent: text("user_agent"),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(strftime('%s', 'now'))`),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
 });
 
@@ -23,7 +23,7 @@ export const loginLogs = sqliteTable("login_logs", {
   profileId: integer("profile_id", { mode: "number" }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
   ip: text("ip"),
   userAgent: text("user_agent"),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(strftime('%s', 'now'))`),
 });
 
 export const wishlist = sqliteTable("wishlist", {
@@ -33,7 +33,7 @@ export const wishlist = sqliteTable("wishlist", {
   title: text("title").notNull(),
   posterPath: text("poster_path"),
   type: text("type", { enum: ["movie", "tv"] }).notNull().default("movie"),
-  addedAt: integer("added_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  addedAt: integer("added_at", { mode: "timestamp" }).notNull().default(sql`(strftime('%s', 'now'))`),
 }, (t) => ({
   unq: unique().on(t.profileId, t.tmdbId),
 }));
@@ -46,5 +46,5 @@ export const watchlist = sqliteTable("watchlist", {
   lastSeason: integer("last_season"),
   lastEpisode: integer("last_episode"),
   resumeTimeSeconds: integer("resume_time_seconds").notNull().default(0),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(strftime('%s', 'now'))`),
 });
