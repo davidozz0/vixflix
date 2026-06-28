@@ -85,7 +85,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
     this.type = (this.route.snapshot.queryParamMap.get('type') as 'movie' | 'tv') || 'movie';
     this.season = Number(this.route.snapshot.queryParamMap.get('season')) || 1;
     this.episode = Number(this.route.snapshot.queryParamMap.get('episode')) || 1;
-    console.log('Player init', { tmdbId: this.tmdbId, type: this.type, season: this.season, episode: this.episode });
+    console.log('Player init', { tmdbId: this.tmdbId, type: this.type, season: this.season, episode: this.episode, title: this.contentTitle });
 
     if (this.type === 'tv') {
       this.contentService.seasonEpisodes(this.tmdbId, this.season).subscribe(data => {
