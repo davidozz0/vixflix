@@ -6,7 +6,7 @@ import bcryptjs from "bcryptjs";
 import crypto from "crypto";
 import { db } from "./db/index.js";
 import { profiles, sessions, loginLogs, watchlist, wishlist } from "./db/schema.js";
-import { eq, and, desc, inArray, lt, sql } from "drizzle-orm";
+import { eq, and, desc, inArray, gt, lt, sql } from "drizzle-orm";
 
 dotenv.config();
 
@@ -37,7 +37,7 @@ async function auth(req: AuthRequest, res: Response, next: NextFunction) {
   const token = req.cookies?.session;
   if (!token) return res.status(401).json({ error: "Not authenticated" });
   const rows = db.select().from(sessions)
-    .where(and(eq(sessions.token, token), lt(sessions.expiresAt, sql`datetime('now')`)))
+    .where(and(eq(sessions.token, token), gt(sessions.expiresAt, sql`unixepoch()`)))
     .all();
   if (rows.length === 0) {
     res.clearCookie("session");
@@ -53,15 +53,16 @@ function getClientIp(req: Request): string {
     || "";
 }
 
-async function sendTelegramMessage(text: string) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+async function sendTelegramMessage(text: string): Promise<void> {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) { console.log("Telegram: missing BOT_TOKEN or CHAT_ID"); return; }
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: "HTML" }),
     });
-  } catch { /* optional */ }
+    if (!res.ok) console.error("Telegram error:", res.status, await res.text().catch(() => ""));
+  } catch (e) { console.error("Telegram error:", e); }
 }
 
 async function tmdb(path: string, params?: Record<string, string>) {
@@ -128,15 +129,22 @@ app.post("/api/profiles/login", async (req, res) => {
   const ip = getClientIp(req);
   const ua = req.headers["user-agent"] || "";
 
-  // Check if first login
+  // Check if IP gia' visto
+  const seenIps = db.select().from(loginLogs).where(and(eq(loginLogs.profileId, profile.id), eq(loginLogs.ip, ip))).all();
+  const isNewIp = seenIps.length === 0;
+
+  // Check if first login ever
   const prevLogins = db.select().from(loginLogs).where(eq(loginLogs.profileId, profile.id)).all();
+  const isFirstLogin = prevLogins.length === 0;
 
   // Log the login
   db.insert(loginLogs).values({ profileId: profile.id, ip, userAgent: ua }).run();
 
-  // Telegram on first login
-  if (prevLogins.length === 0) {
-    const msg = `<b>🔐 Nuovo accesso VixFlix</b>\nUtente: ${profile.name}\nIP: ${ip}\nBrowser: ${ua}`;
+  // Telegram on first login OR new IP
+  if (isFirstLogin || isNewIp) {
+    const msg = isFirstLogin
+      ? `<b>🔐 Primo accesso VixFlix</b>\nUtente: ${profile.name}\nIP: ${ip}\nBrowser: ${ua}`
+      : `<b>🔐 Nuovo dispositivo VixFlix</b>\nUtente: ${profile.name}\nIP: ${ip}\nBrowser: ${ua}`;
     sendTelegramMessage(msg);
   }
 
@@ -397,7 +405,7 @@ app.delete("/api/wishlist/:tmdbId", auth, (req: AuthRequest, res) => {
 
 // Clean expired sessions hourly
 setInterval(() => {
-  db.delete(sessions).where(lt(sessions.expiresAt, sql`datetime('now')`)).run();
+  db.delete(sessions).where(lt(sessions.expiresAt, sql`unixepoch()`)).run();
 }, 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;

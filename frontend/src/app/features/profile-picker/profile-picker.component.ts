@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -20,13 +20,25 @@ import { ProfileService } from '../../core/services/profile.service';
     </div>
   `
 })
-export class ProfilePickerComponent {
+export class ProfilePickerComponent implements OnInit {
   private profileService = inject(ProfileService);
   private router = inject(Router);
 
   name = '';
   pin = '';
   error = '';
+
+  ngOnInit() {
+    if (this.profileService.isLoggedIn) {
+      this.router.navigate(['/home'], { queryParams: { type: 'movie' } });
+      return;
+    }
+    // Prova a ripristinare sessione da cookie
+    this.profileService.me().subscribe({
+      next: () => this.router.navigate(['/home'], { queryParams: { type: 'movie' } }),
+      error: () => {} // No session, resta su login
+    });
+  }
 
   login() {
     this.error = '';

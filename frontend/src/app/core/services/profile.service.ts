@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { BehaviorSubject, Observable } from 'rxjs';
+import { map, tap } from 'rxjs/operators';
 import { Profile } from '../../models/profile.model';
 import { environment } from '../../../environments/environment';
 
@@ -12,15 +12,14 @@ export class ProfileService {
   private session$ = new BehaviorSubject<Profile | null>(null);
   public session = this.session$.asObservable();
 
-  constructor(private http: HttpClient) {
-    this.me().subscribe({
-      next: p => this.session$.next(p),
-      error: () => this.session$.next(null),
-    });
-  }
+  constructor(private http: HttpClient) {}
 
   get isLoggedIn(): boolean {
     return this.session$.value !== null;
+  }
+
+  clearSession(): void {
+    this.session$.next(null);
   }
 
   getToken(): string | null {
@@ -42,6 +41,8 @@ export class ProfileService {
   }
 
   me(): Observable<Profile> {
-    return this.http.get<Profile>(`${API_URL}/profiles/me`, { withCredentials: true });
+    return this.http.get<Profile>(`${API_URL}/profiles/me`, { withCredentials: true }).pipe(
+      tap(p => this.session$.next(p))
+    );
   }
 }
