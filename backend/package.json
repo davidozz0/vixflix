@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "npm run build && tsx watch src/index.ts",
-    "build": "tsc && copy src\\*.html dist\\",
+    "build": "tsc",
     "start": "node dist/index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

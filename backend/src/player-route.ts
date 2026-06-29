@@ -9,8 +9,9 @@ import { scrapeStream, proxyFetch } from "./scraper.js";
 import { get } from "./m3u8-cache.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const playerTemplate = readFileSync(join(__dirname, "player-page.html"), "utf-8");
-const playerTestTemplate = readFileSync(join(__dirname, "player-test.html"), "utf-8");
+const srcDir = join(__dirname, "..", "src");
+const playerTemplate = readFileSync(join(srcDir, "player-page.html"), "utf-8");
+const playerTestTemplate = readFileSync(join(srcDir, "player-test.html"), "utf-8");
 
 const router = Router();
 
