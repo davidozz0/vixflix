@@ -87,26 +87,13 @@
         return;
       }
 
-      // Safari: init Shaka Player (setup MSE/video), poi usa src diretto
+      // Safari: reindirizza a player originale vixsrc.to (native HLS non funziona)
       var isRealSafari = navigator.vendor === 'Apple Computer, Inc.' && !/CriOS|FxiOS/.test(navigator.userAgent);
       if (isRealSafari) {
-        if (typeof shaka !== 'undefined') {
-          shaka.polyfill.installAll();
-          try {
-            player = new shaka.Player(video);
-            log('Shaka Player created for MSE setup (Safari)');
-          } catch (e) {
-            log('Shaka init fallito (Safari): ' + e.message);
-          }
-        }
-        log('Safari detected, using native HLS via video.src');
-        video.src = m3u8Url;
-        video.play().then(function() {
-          log('Riproduzione avviata via native HLS');
-        }).catch(function(e) {
-          log('video.play() fallito: ' + e.message);
-        });
-      } else {
+        log('Safari detected, redirect to original player');
+        parent.location.href = '{{FALLBACK_URL}}';
+        return;
+      }
         // Non-Safari: Shaka Player
         if (typeof shaka === 'undefined') {
           showError('Shaka Player library not loaded from CDN');
@@ -163,9 +150,8 @@
           if (e.data) log('Error data: ' + JSON.stringify(e.data));
           showError('Caricamento stream fallito: ' + (e.message || e.code || 'errore sconosciuto'));
         });
-      }
 
-      // Timeupdate ogni 5 secondi (funziona per Safari nativo e Shaka)
+      // Timeupdate ogni 5 secondi
       setInterval(function() {
         if (!video.paused) {
           sendEvent('timeupdate', { currentTime: video.currentTime });

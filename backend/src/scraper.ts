@@ -30,18 +30,6 @@ const PLAYLIST_HEADERS = {
   "Origin": VIXSRC_BASE,
 };
 
-// Client axios condiviso tra scraper e proxy endpoint (mantiene cookies sessione vixsrc.to)
-let _vixsrcClient: AxiosInstance | null = null;
-export function getVixsrcClient(): AxiosInstance {
-  if (!_vixsrcClient) {
-    _vixsrcClient = axios.create({
-      headers: DEFAULT_HEADERS,
-      timeout: 15000,
-    });
-  }
-  return _vixsrcClient;
-}
-
 function extractJsonBlock(html: string, varName: string): string | null {
   const prefix = `window.${varName} = `;
   const start = html.indexOf(prefix);
@@ -106,16 +94,7 @@ function filterM3u8(m3u8Text: string): string {
 
     filtered.push(line);
   }
-
-  // Riscrivi URL vixsrc.to attraverso proxy backend (per CORS/headers su Safari)
-  const proxyBase = "/api/player/fetch?url=";
-  const rewritten = filtered.map(line => {
-    return line.replace(
-      /(https?:\/\/vixsrc\.to[^\s"']*)/g,
-      (match) => proxyBase + encodeURIComponent(match)
-    );
-  });
-  return rewritten.join("\n");
+  return filtered.join("\n");
 }
 
 async function warmupSession(client: AxiosInstance): Promise<void> {
@@ -132,7 +111,10 @@ export async function scrapeStream(
   season?: number,
   episode?: number
 ): Promise<{ cacheKey: string } | null> {
-  const client = getVixsrcClient();
+  const client = axios.create({
+    headers: DEFAULT_HEADERS,
+    timeout: 15000,
+  });
 
   await warmupSession(client);
 
