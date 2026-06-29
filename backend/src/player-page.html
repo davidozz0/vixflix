@@ -43,7 +43,7 @@
     <button id="fallbackBtn">Riprova con player originale</button>
   </div>
   <div id="uiContainer">
-    <video id="video" autoplay playsinline muted></video>
+    <video id="video" autoplay playsinline muted controls></video>
   </div>
   <script>
     (function() {
@@ -124,6 +124,19 @@
 
       if (!m3u8Url || m3u8Url === '') {
         showError('URL stream non disponibile (placeholder non sostituito)');
+        return;
+      }
+
+      // Safari: native HLS diretto (MSE/Shaka non supporta codecs su Safari reale)
+      var isRealSafari = navigator.vendor === 'Apple Computer, Inc.' && !/CriOS|FxiOS/.test(navigator.userAgent);
+      if (isRealSafari) {
+        log('Safari detected, using native HLS');
+        video.src = m3u8Url;
+        video.play().then(function() {
+          log('Riproduzione avviata via native HLS');
+        }).catch(function(e) {
+          log('video.play() fallito: ' + e.message);
+        });
         return;
       }
 
