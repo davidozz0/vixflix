@@ -43,7 +43,7 @@
     <button id="fallbackBtn">Riprova con player originale</button>
   </div>
   <div id="uiContainer">
-    <video id="video" autoplay playsinline muted controls></video>
+    <video id="video" autoplay playsinline muted></video>
   </div>
   <script>
     (function() {
@@ -79,46 +79,6 @@
         parent.location.href = '{{FALLBACK_URL}}';
       });
 
-      if (typeof shaka === 'undefined') {
-        showError('Shaka Player library not loaded from CDN');
-        return;
-      }
-      log('Shaka Player library loaded');
-
-      shaka.polyfill.installAll();
-
-      if (!shaka.Player.isBrowserSupported()) {
-        showError('Browser non supportato da Shaka Player');
-        return;
-      }
-      log('Browser supported');
-
-      try {
-        // Usa costruttore con video element (funzionava senza UI)
-        player = new shaka.Player(video);
-        log('Shaka Player instance created');
-      } catch (e) {
-        showError('Shaka Player instantiation failed: ' + e.message);
-        return;
-      }
-
-      // Install UI overlay (controlli, selettore qualita, audio)
-      try {
-        ui = new shaka.ui.Overlay(player, uiContainer, video);
-        log('Shaka UI Overlay created');
-      } catch (e) {
-        log('Shaka UI Overlay fallito, uso player base: ' + e.message);
-      }
-
-      player.addEventListener('error', function(e) {
-        var detail = e.detail;
-        var msg = 'Shaka error: ' + (detail ? detail.message || detail.type || JSON.stringify(detail) : 'unknown');
-        log(msg);
-        if (detail && detail.severity) log('Severity: ' + detail.severity);
-        if (detail && detail.category) log('Category: ' + detail.category);
-        showError(msg);
-      });
-
       var m3u8Url = '{{M3U8_URL}}';
       log('M3U8 URL: ' + m3u8Url);
 
@@ -127,7 +87,7 @@
         return;
       }
 
-      // Safari: native HLS diretto (MSE/Shaka non supporta codecs su Safari reale)
+      // Safari: native HLS diretto, bypassa Shaka completamente
       var isRealSafari = navigator.vendor === 'Apple Computer, Inc.' && !/CriOS|FxiOS/.test(navigator.userAgent);
       if (isRealSafari) {
         log('Safari detected, using native HLS');
@@ -139,6 +99,45 @@
         });
       } else {
         // Non-Safari: Shaka Player
+        if (typeof shaka === 'undefined') {
+          showError('Shaka Player library not loaded from CDN');
+          return;
+        }
+        log('Shaka Player library loaded');
+
+        shaka.polyfill.installAll();
+
+        if (!shaka.Player.isBrowserSupported()) {
+          showError('Browser non supportato da Shaka Player');
+          return;
+        }
+        log('Browser supported');
+
+        try {
+          player = new shaka.Player(video);
+          log('Shaka Player instance created');
+        } catch (e) {
+          showError('Shaka Player instantiation failed: ' + e.message);
+          return;
+        }
+
+        // Install UI overlay
+        try {
+          ui = new shaka.ui.Overlay(player, uiContainer, video);
+          log('Shaka UI Overlay created');
+        } catch (e) {
+          log('Shaka UI Overlay fallito: ' + e.message);
+        }
+
+        player.addEventListener('error', function(e) {
+          var detail = e.detail;
+          var msg = 'Shaka error: ' + (detail ? detail.message || detail.type || JSON.stringify(detail) : 'unknown');
+          log(msg);
+          if (detail && detail.severity) log('Severity: ' + detail.severity);
+          if (detail && detail.category) log('Category: ' + detail.category);
+          showError(msg);
+        });
+
         log('Avvio caricamento stream...');
         player.load(m3u8Url).then(function() {
           log('Stream caricato, avvio riproduzione');
@@ -157,9 +156,9 @@
         });
       }
 
-      // Timeupdate ogni 5 secondi
+      // Timeupdate ogni 5 secondi (funziona per Safari nativo e Shaka)
       setInterval(function() {
-        if (player && !video.paused) {
+        if (!video.paused) {
           sendEvent('timeupdate', { currentTime: video.currentTime });
         }
       }, 5000);
