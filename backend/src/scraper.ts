@@ -50,7 +50,7 @@ function extractJsonBlock(html: string, varName: string): string | null {
   return html.slice(valueStart, end).trim();
 }
 
-function filterM3u8(m3u8Text: string): { content: string; variantUrl: string | null } {
+function filterM3u8(m3u8Text: string, proxyReplacement?: string): { content: string; variantUrl: string | null } {
   const lines = m3u8Text.split("\n");
 
   // Trova variante con massima risoluzione
@@ -103,9 +103,15 @@ function filterM3u8(m3u8Text: string): { content: string; variantUrl: string | n
       continue;
     }
 
-    // Linea URL dopo STREAM-INF — salva per proxy (usa line originale, non stripped)
+    // Linea URL dopo STREAM-INF — salva per proxy
     if (stripped && !stripped.startsWith("#") && !skipUrl) {
-      if (!variantUrl) variantUrl = line.trim();
+      if (!variantUrl) {
+        variantUrl = stripped; // URL originale per proxyFetch
+        if (proxyReplacement) {
+          filtered.push(proxyReplacement); // URL proxy nella M3U8
+          continue; // salta push della linea originale
+        }
+      }
     }
 
     filtered.push(line);
@@ -273,23 +279,19 @@ export async function scrapeStream(
     console.log(m3u8Raw);
     console.log(`[scraper] === END RAW M3U8 ===`);
 
-    // Step 6: filtra M3U8
-    const { content: filteredM3u8, variantUrl } = filterM3u8(m3u8Raw);
+    // Step 6-7: genera cacheKey, filtra M3U8 (con proxy URL sostituita)
+    const cacheKey = Math.random().toString(36).slice(2, 14);
+    const proxyUrl = `/api/player/fetch/${cacheKey}`;
+    const { content: filteredM3u8, variantUrl } = filterM3u8(m3u8Raw, proxyUrl);
     const filteredLines = filteredM3u8.split("\n").filter((l: string) => l.trim());
     console.log(`[scraper] M3U8 filtered: ${filteredLines.length} lines`);
     console.log(`[scraper] Variant URL: ${variantUrl ? variantUrl.slice(0, 80) : 'NONE'}`);
+    console.log(`[scraper] Proxy URL: ${proxyUrl}`);
     console.log(`[scraper] === FILTERED M3U8 CONTENT ===`);
     console.log(filteredM3u8);
     console.log(`[scraper] === END FILTERED M3U8 ===`);
 
-    // Step 7: cache — genera cacheKey, sostituisce variantUrl con proxy URL
-    const cacheKey = Math.random().toString(36).slice(2, 14);
-    const proxyUrl = `/api/player/fetch/${cacheKey}`;
-    const m3u8WithProxy = variantUrl
-      ? filteredM3u8.replace(variantUrl.trim(), proxyUrl)
-      : filteredM3u8;
-    console.log(`[scraper] Variant URL rewritten: ${variantUrl ? variantUrl.slice(0, 50) + '... -> ' + proxyUrl : 'NONE'}`);
-    set(cacheKey, m3u8WithProxy, { variantUrl: variantUrl || undefined, embedUrl });
+    set(cacheKey, filteredM3u8, { variantUrl: variantUrl || undefined, embedUrl });
 
     console.log(`[scraper] Cached M3U8 for ${tmdbId} server ${s.name || "unknown"} key=${cacheKey}`);
     return { cacheKey };
