@@ -97,16 +97,6 @@
         // Usa costruttore con video element (funzionava senza UI)
         player = new shaka.Player(video);
         log('Shaka Player instance created');
-
-        // Safari/iOS: usa native HLS per evitare LOAD_INTERRUPTED (error 1001)
-        var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-        var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        if (isSafari || isIOS) {
-          log('Safari/iOS detected, enable native HLS fallback');
-          player.configure({
-            streaming: { preferNativeHls: true }
-          });
-        }
       } catch (e) {
         showError('Shaka Player instantiation failed: ' + e.message);
         return;
