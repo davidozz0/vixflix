@@ -10,6 +10,8 @@ import { fileURLToPath } from "url";
 import { db } from "./db/index.js";
 import { profiles, sessions, loginLogs, watchlist, wishlist } from "./db/schema.js";
 import { eq, and, desc, inArray, gt, lt, sql } from "drizzle-orm";
+import playerRouter from "./player-route.js";
+import { startCleanup } from "./m3u8-cache.js";
 
 dotenv.config();
 
@@ -417,6 +419,12 @@ app.delete("/api/wishlist/:tmdbId", auth, (req: AuthRequest, res) => {
   db.delete(wishlist).where(and(eq(wishlist.profileId, profileId), eq(wishlist.tmdbId, tmdbId))).run();
   res.json({ ok: true });
 });
+
+// Player routes
+app.use("/api", playerRouter);
+
+// Avvia cleanup periodico cache M3U8
+startCleanup();
 
 // Catch-all middleware: serve index.html per Angular routing (solo GET non-API)
 if (existsSync(distPath)) {
