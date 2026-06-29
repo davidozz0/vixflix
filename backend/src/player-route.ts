@@ -1,0 +1,96 @@
+// backend/src/player-route.ts
+// Route per player page HTML + M3U8 proxy
+
+import { Router, Request, Response } from "express";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import { scrapeStream } from "./scraper.js";
+import { get } from "./m3u8-cache.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const playerTemplate = readFileSync(join(__dirname, "player-page.html"), "utf-8");
+
+const router = Router();
+
+// Player page for movies
+router.get("/player/movie/:tmdbId", async (req: Request, res: Response) => {
+  const tmdbId = Number(req.params.tmdbId);
+  if (isNaN(tmdbId)) return res.status(400).send("Invalid tmdbId");
+
+  try {
+    const result = await scrapeStream(tmdbId, "movie");
+    if (!result) {
+      return sendErrorPage(res, tmdbId, "movie");
+    }
+
+    const html = playerTemplate
+      .replace("{{M3U8_URL}}", `/api/player/stream/${result.cacheKey}.m3u8`);
+    res.send(html);
+  } catch (err: any) {
+    console.error(`[player-route] Error for movie ${tmdbId}:`, err.message);
+    return sendErrorPage(res, tmdbId, "movie");
+  }
+});
+
+// Player page for TV
+router.get("/player/tv/:tmdbId/:season/:episode", async (req: Request, res: Response) => {
+  const tmdbId = Number(req.params.tmdbId);
+  const season = Number(req.params.season);
+  const episode = Number(req.params.episode);
+  if (isNaN(tmdbId) || isNaN(season) || isNaN(episode)) {
+    return res.status(400).send("Invalid parameters");
+  }
+
+  try {
+    const result = await scrapeStream(tmdbId, "tv", season, episode);
+    if (!result) {
+      return sendErrorPage(res, tmdbId, "tv", season, episode);
+    }
+
+    const html = playerTemplate
+      .replace("{{M3U8_URL}}", `/api/player/stream/${result.cacheKey}.m3u8`);
+    res.send(html);
+  } catch (err: any) {
+    console.error(`[player-route] Error for tv ${tmdbId} S${season}E${episode}:`, err.message);
+    return sendErrorPage(res, tmdbId, "tv", season, episode);
+  }
+});
+
+// Serve cached M3U8
+router.get("/player/stream/:key.m3u8", (req: Request, res: Response) => {
+  const key = req.params.key as string;
+  const m3u8 = get(key);
+  if (!m3u8) {
+    return res.status(404).json({ error: "Stream not found or expired" });
+  }
+  res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.send(m3u8);
+});
+
+function sendErrorPage(res: Response, tmdbId: number, type: string, season?: number, episode?: number) {
+  const fallbackUrl = type === "tv" && season && episode
+    ? `https://vixsrc.to/tv/${tmdbId}/${season}/${episode}?lang=it&autoplay=true`
+    : `https://vixsrc.to/movie/${tmdbId}?lang=it&autoplay=true`;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>
+  body { margin:0; background:#000; color:#fff; font-family:sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; gap:1rem; }
+  h2 { color:#e50914; margin:0; }
+  p { color:#aaa; margin:0; }
+  button { padding:0.75rem 1.5rem; font-size:1rem; background:#e50914; color:#fff; border:none; border-radius:4px; cursor:pointer; }
+  button:hover { opacity:0.9; }
+</style></head>
+<body>
+  <h2>Stream non disponibile</h2>
+  <p>Lo scraping dello stream ha fallito.</p>
+  <button onclick="parent.location.href='${fallbackUrl}'">Riprova con player originale</button>
+</body></html>`;
+
+  res.send(html);
+}
+
+export default router;
