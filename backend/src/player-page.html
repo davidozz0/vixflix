@@ -43,7 +43,7 @@
     <button id="fallbackBtn">Riprova con player originale</button>
   </div>
   <div id="uiContainer">
-    <video id="video" autoplay playsinline></video>
+    <video id="video" autoplay playsinline muted></video>
   </div>
   <script>
     (function() {
@@ -97,14 +97,6 @@
         // Usa costruttore con video element (funzionava senza UI)
         player = new shaka.Player(video);
         log('Shaka Player instance created');
-
-        // Safari reale (non Chrome/Firefox su iOS): native HLS per error 1001
-        var isRealSafari = navigator.vendor === 'Apple Computer, Inc.' &&
-          !/CriOS|FxiOS/.test(navigator.userAgent);
-        if (isRealSafari) {
-          log('Real Safari detected, enable native HLS');
-          player.configure({ streaming: { preferNativeHls: true } });
-        }
       } catch (e) {
         showError('Shaka Player instantiation failed: ' + e.message);
         return;
