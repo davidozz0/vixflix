@@ -4,8 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shaka-player@4/dist/controls.css">
-  <script src="https://cdn.jsdelivr.net/npm/shaka-player@4/dist/shaka-player.ui.js">
-  </script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: -apple-system, sans-serif; }
@@ -509,15 +507,24 @@
         });
       };
 
+      // Poll for Shaka CDN async load
+      var shakaCheckInterval = setInterval(function() {
+        if (typeof shaka !== 'undefined') {
+          clearInterval(shakaCheckInterval);
+          log('Shaka Player loaded OK via CDN (async)');
+        }
+      }, 300);
+
       // ===== AUTO: Run Shaka test on load =====
-      logStep('Avvio automatico test Shaka tra 500ms...');
+      logStep('Avvio automatico test Shaka tra 1500ms (attesa CDN)...');
       setTimeout(function() {
         if (!shakaTested) {
           window.runShaka();
         }
-      }, 500);
+      }, 1500);
 
     })();
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/shaka-player@4/dist/shaka-player.ui.js" async></script>
 </body>
 </html>
