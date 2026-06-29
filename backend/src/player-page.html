@@ -87,13 +87,19 @@
         return;
       }
 
-      // Safari: native HLS diretto, bypassa Shaka completamente
+      // Safari: init Shaka Player (setup MSE/video), poi usa src diretto
       var isRealSafari = navigator.vendor === 'Apple Computer, Inc.' && !/CriOS|FxiOS/.test(navigator.userAgent);
       if (isRealSafari) {
         if (typeof shaka !== 'undefined') {
           shaka.polyfill.installAll();
+          try {
+            player = new shaka.Player(video);
+            log('Shaka Player created for MSE setup (Safari)');
+          } catch (e) {
+            log('Shaka init fallito (Safari): ' + e.message);
+          }
         }
-        log('Safari detected, using native HLS');
+        log('Safari detected, using native HLS via video.src');
         video.src = m3u8Url;
         video.play().then(function() {
           log('Riproduzione avviata via native HLS');
