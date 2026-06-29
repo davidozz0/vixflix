@@ -24,9 +24,11 @@ router.get("/player/movie/:tmdbId", async (req: Request, res: Response) => {
       return sendErrorPage(res, tmdbId, "movie");
     }
 
+    const m3u8ProxyUrl = `/api/player/stream/${result.cacheKey}.m3u8`;
     const fallbackUrl = `https://vixsrc.to/movie/${tmdbId}?lang=it&autoplay=true`;
+    console.log(`[player-route] Serving player page for movie ${tmdbId}, M3U8 proxy: ${m3u8ProxyUrl}`);
     const html = playerTemplate
-      .replace("{{M3U8_URL}}", `/api/player/stream/${result.cacheKey}.m3u8`)
+      .replace("{{M3U8_URL}}", m3u8ProxyUrl)
       .replace("{{FALLBACK_URL}}", fallbackUrl);
     res.send(html);
   } catch (err: any) {
@@ -66,8 +68,12 @@ router.get("/player/stream/:key.m3u8", (req: Request, res: Response) => {
   const key = req.params.key as string;
   const m3u8 = get(key);
   if (!m3u8) {
+    console.log(`[player-route] M3U8 cache MISS for key=${key}`);
     return res.status(404).json({ error: "Stream not found or expired" });
   }
+  const len = m3u8.length;
+  const firstLine = m3u8.split("\n").find(l => l.trim()) || "";
+  console.log(`[player-route] Serving M3U8 key=${key} (${len} chars), first line: ${firstLine.substring(0, 80)}`);
   res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.send(m3u8);
