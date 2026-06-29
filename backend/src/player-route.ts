@@ -29,8 +29,8 @@ router.get("/player/movie/:tmdbId", async (req: Request, res: Response) => {
     const fallbackUrl = `https://vixsrc.to/movie/${tmdbId}?lang=it&autoplay=true`;
     console.log(`[player-route] Serving player page for movie ${tmdbId}, M3U8 proxy: ${m3u8ProxyUrl}`);
     const html = playerTemplate
-      .replace("{{M3U8_URL}}", m3u8ProxyUrl)
-      .replace("{{FALLBACK_URL}}", fallbackUrl);
+      .replaceAll("{{M3U8_URL}}", m3u8ProxyUrl)
+      .replaceAll("{{FALLBACK_URL}}", fallbackUrl);
     res.send(html);
   } catch (err: any) {
     console.error(`[player-route] Error for movie ${tmdbId}:`, err.message);
@@ -55,8 +55,8 @@ router.get("/player/tv/:tmdbId/:season/:episode", async (req: Request, res: Resp
 
     const fallbackUrl = `https://vixsrc.to/tv/${tmdbId}/${season}/${episode}?lang=it&autoplay=true`;
     const html = playerTemplate
-      .replace("{{M3U8_URL}}", `/api/player/stream/${result.cacheKey}.m3u8`)
-      .replace("{{FALLBACK_URL}}", fallbackUrl);
+      .replaceAll("{{M3U8_URL}}", `/api/player/stream/${result.cacheKey}.m3u8`)
+      .replaceAll("{{FALLBACK_URL}}", fallbackUrl);
     res.send(html);
   } catch (err: any) {
     console.error(`[player-route] Error for tv ${tmdbId} S${season}E${episode}:`, err.message);
@@ -92,9 +92,9 @@ router.get("/player/test", async (req: Request, res: Response) => {
     const m3u8Url = `/api/player/stream/${result.cacheKey}.m3u8`;
     const fallbackUrl = `https://vixsrc.to/movie/${TEST_TMDB_ID}?lang=it&autoplay=true`;
     const html = playerTestTemplate
-      .replace("{{M3U8_URL}}", m3u8Url)
-      .replace("{{FALLBACK_URL}}", fallbackUrl)
-      .replace("{{TMDB_ID}}", String(TEST_TMDB_ID));
+      .replaceAll("{{M3U8_URL}}", m3u8Url)
+      .replaceAll("{{FALLBACK_URL}}", fallbackUrl)
+      .replaceAll("{{TMDB_ID}}", String(TEST_TMDB_ID));
     res.send(html);
   } catch (err: any) {
     console.error(`[player-route] Test page error:`, err.message);
