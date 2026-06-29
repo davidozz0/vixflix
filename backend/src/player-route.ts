@@ -82,6 +82,28 @@ router.get("/player/stream/:key.m3u8", (req: Request, res: Response) => {
   res.send(entry.m3u8);
 });
 
+// Riscrive URL relative in assolute in una M3U8, base = variantUrl
+function rewriteM3u8Urls(m3u8Content: string, variantUrl: string): string {
+  // Deriva base URL dalla variantUrl (senza query string, fino all'ultimo /)
+  const qsIdx = variantUrl.indexOf("?");
+  const baseUrl = qsIdx >= 0 ? variantUrl.substring(0, variantUrl.lastIndexOf("/", qsIdx) + 1) : variantUrl.substring(0, variantUrl.lastIndexOf("/") + 1);
+
+  return m3u8Content.split("\n").map(line => {
+    const trimmed = line.trim();
+    // Salta tag e linee vuote
+    if (!trimmed || trimmed.startsWith("#")) return line;
+    // Salta URL gia assolute
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return line;
+    // URL relativa → risolvi come assoluta
+    try {
+      const absolute = new URL(trimmed, baseUrl).href;
+      return line.replace(trimmed, absolute);
+    } catch {
+      return line;
+    }
+  }).join("\n");
+}
+
 // Proxy: recupera variant playlist/segmenti da vixsrc.to usando sessione scraper
 router.get("/player/fetch/:key", async (req: Request, res: Response) => {
   const key = req.params.key as string;
@@ -102,10 +124,25 @@ router.get("/player/fetch/:key", async (req: Request, res: Response) => {
   const dataLen = result.data ? (result.data.length || result.data.byteLength || 0) : 0;
   console.log(`[player-route] Proxy response: ${result.status} content-type=${contentType} size=${dataLen}`);
 
+  let responseData = result.data;
+
+  // Se e' M3U8, riscrivi URL relative in assolute
+  const isM3u8 = contentType.includes("mpegurl") || contentType.includes("x-mpegurl");
+  if (isM3u8) {
+    const text = responseData instanceof ArrayBuffer
+      ? new TextDecoder().decode(responseData)
+      : String(responseData);
+    const rewritten = rewriteM3u8Urls(text, entry.variantUrl);
+    if (rewritten !== text) {
+      console.log(`[player-route] Rewrote relative URLs in M3U8 (base: ${entry.variantUrl.slice(0, 60)}...)`);
+    }
+    responseData = rewritten;
+  }
+
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "*");
   res.setHeader("Content-Type", contentType);
-  res.send(Buffer.from(result.data));
+  res.send(Buffer.from(responseData));
 });
 
 // Test page — hardcoded TMDB ID
