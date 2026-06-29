@@ -137,25 +137,25 @@
         }).catch(function(e) {
           log('video.play() fallito: ' + e.message);
         });
-        return;
-      }
-
-      log('Avvio caricamento stream...');
-      player.load(m3u8Url).then(function() {
-        log('Stream caricato, avvio riproduzione');
-        video.play().then(function() {
-          log('Riproduzione avviata');
+      } else {
+        // Non-Safari: Shaka Player
+        log('Avvio caricamento stream...');
+        player.load(m3u8Url).then(function() {
+          log('Stream caricato, avvio riproduzione');
+          video.play().then(function() {
+            log('Riproduzione avviata');
+          }).catch(function(e) {
+            log('video.play() fallito: ' + e.message);
+          });
         }).catch(function(e) {
-          log('video.play() fallito: ' + e.message);
+          log('player.load() fallito');
+          log('Error name: ' + e.name);
+          log('Error message: ' + e.message);
+          if (e.code) log('Error code: ' + e.code);
+          if (e.data) log('Error data: ' + JSON.stringify(e.data));
+          showError('Caricamento stream fallito: ' + (e.message || e.code || 'errore sconosciuto'));
         });
-      }).catch(function(e) {
-        log('player.load() fallito');
-        log('Error name: ' + e.name);
-        log('Error message: ' + e.message);
-        if (e.code) log('Error code: ' + e.code);
-        if (e.data) log('Error data: ' + JSON.stringify(e.data));
-        showError('Caricamento stream fallito: ' + (e.message || e.code || 'errore sconosciuto'));
-      });
+      }
 
       // Timeupdate ogni 5 secondi
       setInterval(function() {
