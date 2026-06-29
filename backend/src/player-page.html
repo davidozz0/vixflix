@@ -31,7 +31,7 @@
 <body>
   <div id="errorOverlay" class="error-overlay" style="display:none;">
     <h2>Stream non disponibile</h2>
-    <p>Il caricamento dello stream ha fallito.</p>
+    <p id="errorMsg">Il caricamento dello stream ha fallito.</p>
     <button id="fallbackBtn">Riprova con player originale</button>
   </div>
   <video id="video" autoplay playsinline></video>
@@ -39,6 +39,19 @@
     (function() {
       const video = document.getElementById('video');
       const errorOverlay = document.getElementById('errorOverlay');
+      const errorMsg = document.getElementById('errorMsg');
+      var player = null;
+
+      function showError(msg) {
+        console.error('[VixFlixPlayer]', msg);
+        errorMsg.textContent = msg;
+        errorOverlay.style.display = 'flex';
+        sendEvent('error', { message: msg });
+      }
+
+      function log(msg) {
+        console.log('[VixFlixPlayer]', msg);
+      }
 
       function sendEvent(eventName, extra) {
         parent.postMessage({
@@ -47,54 +60,78 @@
         }, '*');
       }
 
-      // Fallback button: naviga parent window a vixsrc.to diretto
+      log('Player page loaded');
+
+      // Fallback button
       document.getElementById('fallbackBtn').addEventListener('click', function() {
         parent.location.href = '{{FALLBACK_URL}}';
       });
 
       if (typeof shaka === 'undefined') {
-        sendEvent('error', { message: 'Shaka Player library not loaded' });
-        errorOverlay.style.display = 'flex';
+        showError('Shaka Player library not loaded from CDN');
         return;
       }
+      log('Shaka Player library loaded');
 
       shaka.polyfill.installAll();
 
       if (!shaka.Player.isBrowserSupported()) {
-        sendEvent('error', { message: 'Browser not supported' });
-        errorOverlay.style.display = 'flex';
+        showError('Browser non supportato da Shaka Player');
+        return;
+      }
+      log('Browser supported');
+
+      try {
+        player = new shaka.Player(video);
+        log('Shaka Player instance created');
+      } catch (e) {
+        showError('Shaka Player instantiation failed: ' + e.message);
         return;
       }
 
-      var player = new shaka.Player(video);
-
       player.addEventListener('error', function(e) {
-        sendEvent('error', { message: e.detail.message });
-        errorOverlay.style.display = 'flex';
+        var detail = e.detail;
+        var msg = 'Shaka error: ' + (detail ? detail.message || detail.type || JSON.stringify(detail) : 'unknown');
+        log(msg);
+        if (detail && detail.severity) log('Severity: ' + detail.severity);
+        if (detail && detail.category) log('Category: ' + detail.category);
+        showError(msg);
       });
 
       var m3u8Url = '{{M3U8_URL}}';
+      log('M3U8 URL: ' + m3u8Url);
+
       if (!m3u8Url || m3u8Url === '') {
-        sendEvent('error', { message: 'No stream URL available' });
-        errorOverlay.style.display = 'flex';
+        showError('URL stream non disponibile (placeholder non sostituito)');
         return;
       }
 
+      log('Avvio caricamento stream...');
       player.load(m3u8Url).then(function() {
-        video.play();
+        log('Stream caricato, avvio riproduzione');
+        video.play().then(function() {
+          log('Riproduzione avviata');
+        }).catch(function(e) {
+          log('video.play() fallito: ' + e.message);
+        });
       }).catch(function(e) {
-        sendEvent('error', { message: e.message });
-        errorOverlay.style.display = 'flex';
+        log('player.load() fallito');
+        log('Error name: ' + e.name);
+        log('Error message: ' + e.message);
+        if (e.code) log('Error code: ' + e.code);
+        if (e.data) log('Error data: ' + JSON.stringify(e.data));
+        showError('Caricamento stream fallito: ' + (e.message || e.code || 'errore sconosciuto'));
       });
 
       // Timeupdate ogni 5 secondi
       setInterval(function() {
-        if (!video.paused) {
+        if (player && !video.paused) {
           sendEvent('timeupdate', { currentTime: video.currentTime });
         }
       }, 5000);
 
       video.addEventListener('ended', function() {
+        log('Video ended');
         sendEvent('ended');
       });
     })();
