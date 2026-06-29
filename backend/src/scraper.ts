@@ -232,22 +232,18 @@ export async function scrapeStream(
     }
 
     const rawLines = m3u8Raw.split("\n").filter((l: string) => l.trim());
-    console.log(`[scraper] M3U8 raw: ${rawLines.length} lines, starts with: ${rawLines[0]?.substring(0, 80)}`);
-    // Log first segment URL to check CORS origin
-    const firstSeg = rawLines.find((l: string) => l.startsWith("http") || l.startsWith("/"));
-    if (firstSeg) console.log(`[scraper] First segment/base URL: ${firstSeg.substring(0, 120)}`);
+    console.log(`[scraper] M3U8 raw: ${rawLines.length} lines, ${m3u8Raw.length} chars`);
+    console.log(`[scraper] === RAW M3U8 CONTENT ===`);
+    console.log(m3u8Raw);
+    console.log(`[scraper] === END RAW M3U8 ===`);
 
     // Step 6: filtra M3U8
     const filteredM3u8 = filterM3u8(m3u8Raw);
     const filteredLines = filteredM3u8.split("\n").filter((l: string) => l.trim());
     console.log(`[scraper] M3U8 filtered: ${filteredLines.length} lines`);
-    // Log the first EXT-X-STREAM-INF to see quality variants
-    const streamInf = filteredLines.find((l: string) => l.includes("EXT-X-STREAM-INF"));
-    if (streamInf) console.log(`[scraper] Best variant: ${streamInf.substring(0, 150)}`);
-    const segUrl = filteredLines.find((l: string) => l.startsWith("http"));
-    if (segUrl) console.log(`[scraper] Segment origin: ${new URL(segUrl).origin}`);
-    // Also log the playlist URL for debugging
-    console.log(`[scraper] Playlist URL: ${playlistUrl.substring(0, 200)}`);
+    console.log(`[scraper] === FILTERED M3U8 CONTENT ===`);
+    console.log(filteredM3u8);
+    console.log(`[scraper] === END FILTERED M3U8 ===`);
 
     // Step 7: cache
     const cacheKey = Math.random().toString(36).slice(2, 14);
