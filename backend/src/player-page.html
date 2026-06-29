@@ -90,6 +90,9 @@
       // Safari: native HLS diretto, bypassa Shaka completamente
       var isRealSafari = navigator.vendor === 'Apple Computer, Inc.' && !/CriOS|FxiOS/.test(navigator.userAgent);
       if (isRealSafari) {
+        if (typeof shaka !== 'undefined') {
+          shaka.polyfill.installAll();
+        }
         log('Safari detected, using native HLS');
         video.src = m3u8Url;
         video.play().then(function() {
