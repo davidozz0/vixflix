@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shaka-player@4/dist/controls.css">
+  <script src="https://cdn.jsdelivr.net/npm/shaka-player@4/dist/shaka-player.ui.js">
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: -apple-system, sans-serif; }
+    
+    #uiContainer {
+      width: 100vw; height: 100vh;
+      position: relative;
+    }
+    #uiContainer video {
+      width: 100%; height: 100%;
+      object-fit: contain;
+    }
+
+    /* Log panel */
+    #logPanel {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      max-height: 45vh; overflow-y: auto;
+      background: rgba(0,0,0,0.88);
+      color: #0f0; font-family: 'Courier New', monospace; font-size: 11px;
+      padding: 6px 8px; z-index: 100;
+      border-top: 2px solid #333;
+    }
+    #logPanel .l { padding: 1px 0; border-bottom: 1px solid #222; line-height: 1.4; word-break: break-all; }
+    #logPanel .error { color: #ff4444; }
+    #logPanel .warn { color: #ffaa00; }
+    #logPanel .info { color: #00ff00; }
+    #logPanel .step { color: #66ccff; font-weight: bold; }
+    #logPanel .data { color: #cccccc; font-size: 10px; }
+
+    /* Header info bar */
+    #infoBar {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.8);
+      color: #fff; font-size: 11px; padding: 4px 8px;
+      z-index: 200; font-family: monospace;
+      display: flex; justify-content: space-between;
+    }
+    #infoBar .red { color: #ff4444; }
+    #infoBar .green { color: #00ff00; }
+
+    /* Action buttons */
+    #actions {
+      position: fixed; top: 28px; right: 4px;
+      z-index: 200; display: flex; flex-direction: column; gap: 3px;
+    }
+    #actions button {
+      padding: 5px 10px; font-size: 10px;
+      background: #333; color: #fff; border: 1px solid #555;
+      border-radius: 3px; cursor: pointer; text-align: left;
+      white-space: nowrap;
+    }
+    #actions button:hover { background: #555; }
+    #actions button:disabled { opacity: 0.4; cursor: default; }
+    #actions button .badge { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+    .badge-ok { background: #0f0; }
+    .badge-fail { background: #f44; }
+    .badge-wait { background: #ff0; }
+
+    /* Error overlay */
+    .error-overlay {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85);
+      color: #fff; font-family: sans-serif;
+      gap: 1rem;
+    }
+    .error-overlay h2 { color: #e50914; margin: 0; }
+    .error-overlay p { color: #aaa; margin: 0; text-align: center; padding: 0 1rem; }
+    .error-overlay button {
+      padding: 0.75rem 1.5rem; font-size: 1rem;
+      background: #e50914; color: #fff; border: none;
+      border-radius: 4px; cursor: pointer;
+    }
+    .error-overlay button:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div id="infoBar">
+    <span id="browserInfo">...</span>
+    <span id="testId">TMDB: {{TMDB_ID}}</span>
+  </div>
+
+  <div id="uiContainer">
+    <video id="video" autoplay playsinline muted></video>
+  </div>
+
+  <div id="actions">
+    <button id="btnShaka" onclick="runShaka()">▶ Shaka Player</button>
+    <button id="btnNative" onclick="runNativeHLS()" disabled>▶ Native HLS</button>
+    <button id="btnDirect" onclick="runDirectFetch()">▶ Direct M3U8 fetch</button>
+    <button onclick="clearLog()">🗑 Clear log</button>
+  </div>
+
+  <div id="logPanel"></div>
+
+  <div id="errorOverlay" class="error-overlay" style="display:none;">
+    <h2>Stream non disponibile</h2>
+    <p id="errorMsg">Caricamento fallito.</p>
+    <button id="fallbackBtn">Riprova player originale</button>
+  </div>
+
+  <script>
+    (function() {
+      var TMDB_ID = {{TMDB_ID}};
+      var FALLBACK_URL = '{{FALLBACK_URL}}';
+
+      var video = document.getElementById('video');
+      var uiContainer = document.getElementById('uiContainer');
+      var logPanel = document.getElementById('logPanel');
+      var errorOverlay = document.getElementById('errorOverlay');
+      var errorMsg = document.getElementById('errorMsg');
+
+      var player = null;
+      var ui = null;
+      var shakaTested = false;
+      var nativeTested = false;
+      var m3u8Url = '{{M3U8_URL}}';
+      var m3u8Raw = null;
+
+      // ===== LOG SYSTEM =====
+      function log(msg, type) {
+        type = type || 'info';
+        var entry = document.createElement('div');
+        entry.className = 'l ' + type;
+        var t = new Date().toISOString().slice(11, 23);
+        entry.textContent = '[' + t + '] ' + msg;
+        logPanel.appendChild(entry);
+        logPanel.scrollTop = logPanel.scrollHeight;
+        console.log('[TestPlayer]', msg);
+      }
+      window.log = log;
+
+      function logError(msg) { log(msg, 'error'); }
+      function logWarn(msg) { log(msg, 'warn'); }
+      function logStep(msg) { log(msg, 'step'); }
+      function logData(msg) { log(msg, 'data'); }
+
+      function clearLog() {
+        logPanel.innerHTML = '';
+        log('Log cleared');
+      }
+      window.clearLog = clearLog;
+
+      // ===== UI HELPERS =====
+      function showError(msg) {
+        logError('FATAL: ' + msg);
+        errorMsg.textContent = msg;
+        errorOverlay.style.display = 'flex';
+      }
+
+      function setBtnState(id, state) {
+        var btn = document.getElementById(id);
+        if (!btn) return;
+        btn.disabled = (state === 'disabled' || state === 'done' || state === 'running');
+        btn.innerHTML = state === 'running' ? '⏳ Running...' :
+                        state === 'done' ? '✅ Done' :
+                        state === 'fail' ? '❌ Failed' : btn.dataset.label || btn.textContent;
+      }
+
+      // ===== BROWSER DETECTION =====
+      function detectBrowser() {
+        var ua = navigator.userAgent;
+        var info = '';
+        if (navigator.vendor && navigator.vendor.indexOf('Apple') >= 0) info += 'Safari ';
+        if (ua.indexOf('Chrome') >= 0) info += 'Chrome ';
+        if (ua.indexOf('Firefox') >= 0) info += 'Firefox ';
+        if (ua.indexOf('CriOS') >= 0) info += '(CriOS) ';
+        if (ua.indexOf('FxiOS') >= 0) info += '(FxiOS) ';
+        var ios = /iPad|iPhone|iPod/.test(ua);
+        if (ios) info += 'iOS ';
+        info += '| ' + ua.slice(0, 100);
+        document.getElementById('browserInfo').textContent = info;
+        log('Browser: ' + ua);
+        log('Vendor: ' + navigator.vendor);
+        log('Platform: ' + navigator.platform);
+        log('iOS: ' + ios);
+        return { isSafari: /Apple/.test(navigator.vendor) && !/CriOS|FxiOS/.test(ua), isIOS: ios };
+      }
+
+      // ===== FALLBACK BUTTON =====
+      document.getElementById('fallbackBtn').addEventListener('click', function() {
+        parent.location.href = FALLBACK_URL;
+      });
+
+      // ===== INIT =====
+      var browser = detectBrowser();
+      log('TMDB ID: ' + TMDB_ID);
+      log('M3U8 URL: ' + m3u8Url);
+      log('Fallback URL: ' + FALLBACK_URL);
+      log('');
+
+      if (!m3u8Url || m3u8Url === '') {
+        showError('URL stream non disponibile (placeholder non sostituito)');
+        return;
+      }
+
+      // Check if Shaka loaded
+      if (typeof shaka === 'undefined') {
+        logError('Shaka Player library NOT loaded from CDN');
+      } else {
+        log('Shaka Player library loaded OK');
+      }
+      log('');
+
+      // ===== TEST 1: Shaka Player =====
+      window.runShaka = function() {
+        if (shakaTested) { log('Shaka gia testato, resetta pagina per riprovare'); return; }
+        shakaTested = true;
+        setBtnState('btnShaka', 'running');
+
+        logStep('=== TEST 1: Shaka Player ===');
+        log('Browser support check...');
+
+        if (typeof shaka === 'undefined') {
+          logError('Shaka non caricato, salto test');
+          setBtnState('btnShaka', 'fail');
+          return;
+        }
+
+        // Polyfill
+        try {
+          shaka.polyfill.installAll();
+          log('shaka.polyfill.installAll() OK');
+        } catch (e) {
+          logError('polyfill failed: ' + e.message);
+          setBtnState('btnShaka', 'fail');
+          return;
+        }
+
+        // Browser support
+        try {
+          var supported = shaka.Player.isBrowserSupported();
+          log('shaka.Player.isBrowserSupported() = ' + supported);
+          if (!supported) {
+            logError('Browser NON supportato da Shaka');
+            // Log details
+            logData('UA: ' + navigator.userAgent);
+            logData('video element support: ' + (typeof video.canPlayType === 'function'));
+            setBtnState('btnShaka', 'fail');
+            enableNativeHLS();
+            return;
+          }
+        } catch (e) {
+          logError('isBrowserSupported threw: ' + e.message);
+          setBtnState('btnShaka', 'fail');
+          enableNativeHLS();
+          return;
+        }
+
+        // Create player
+        try {
+          player = new shaka.Player(video);
+          log('new shaka.Player(video) OK');
+          logData('Player version: ' + (shaka.Player.version || 'unknown'));
+        } catch (e) {
+          logError('Shaka instantiation failed: ' + e.message);
+          logData('Name: ' + e.name);
+          logData('Stack: ' + (e.stack || 'none').slice(0, 200));
+          setBtnState('btnShaka', 'fail');
+          enableNativeHLS();
+          return;
+        }
+
+        // UI overlay
+        try {
+          ui = new shaka.ui.Overlay(player, uiContainer, video);
+          log('shaka.ui.Overlay created OK');
+        } catch (e) {
+          logWarn('UI Overlay failed (non-critical): ' + e.message);
+        }
+
+        // Shaka error listener
+        player.addEventListener('error', function(e) {
+          var detail = e.detail;
+          logError('SHAKA ERROR EVENT FIRED');
+          if (detail) {
+            logData('  code: ' + detail.code);
+            logData('  message: ' + (detail.message || 'none'));
+            logData('  severity: ' + (detail.severity || 'unknown'));
+            logData('  category: ' + (detail.category || 'unknown'));
+            logData('  type: ' + (detail.type || 'unknown'));
+            logData('  data: ' + JSON.stringify(detail.data || {}));
+            if (detail.code === 1002) {
+              logData('  → RESTRICTIONS_CANNOT_BE_MET: MSE codec not supported');
+            }
+            if (detail.code === 3016) {
+              logData('  → HLS_COULD_NOT_GUESS_MIME_TYPE');
+            }
+            if (detail.code === 1001) {
+              logData('  → LOAD_INTERRUPTED');
+            }
+            if (detail.code === 4049) {
+              logData('  → SEGMENT_ERROR or stream parse error');
+            }
+            if (detail.code === 4042) {
+              logData('  → AES-128 decryption error (content encrypted)');
+            }
+          } else {
+            logData('  no detail object');
+          }
+          setBtnState('btnShaka', 'fail');
+          enableNativeHLS();
+        });
+
+        // Configure Shaka
+        try {
+          var config = {};
+          // Disable preferNativeHls
+          config.hls = { preferNativeHls: false };
+          // Try to set manifest config
+          config.manifest = { dash: { ignoreMinBufferTime: true } };
+          player.configure(config);
+          log('Shaka configured OK');
+          logData('preferNativeHls: false');
+        } catch (e) {
+          logWarn('Configure failed: ' + e.message);
+        }
+
+        // Load stream
+        logStep('Shaka load: ' + m3u8Url);
+        player.load(m3u8Url).then(function() {
+          log('✅ Shaka player.load() SUCCESS');
+          logStep('Stream loaded, starting playback...');
+          return video.play();
+        }).then(function() {
+          log('✅ video.play() SUCCESS');
+          log('Riproduzione avviata!');
+          setBtnState('btnShaka', 'done');
+        }).catch(function(e) {
+          logError('❌ Shaka load failed');
+          logData('  name: ' + (e.name || 'N/A'));
+          logData('  message: ' + (e.message || 'N/A'));
+          logData('  code: ' + (e.code || 'N/A'));
+          if (e.data) {
+            logData('  data: ' + JSON.stringify(e.data));
+            if (e.data.message) logData('  data.message: ' + e.data.message);
+          }
+          logData('  toString: ' + e.toString());
+          setBtnState('btnShaka', 'fail');
+          enableNativeHLS();
+        });
+      };
+
+      // ===== TEST 2: Native HLS =====
+      function enableNativeHLS() {
+        setBtnState('btnNative', '');
+        setBtnState('btnShaka', 'fail');
+        logStep('=== Pulsante Native HLS abilitato ===');
+      }
+
+      window.runNativeHLS = function() {
+        if (nativeTested) { log('Native HLS gia testato'); return; }
+        nativeTested = true;
+        setBtnState('btnNative', 'running');
+
+        logStep('=== TEST 2: Native HLS (video.src) ===');
+
+        // Check if browser supports HLS natively
+        var canPlay = video.canPlayType('application/vnd.apple.mpegurl');
+        log('canPlayType(mpegurl): ' + canPlay);
+        canPlay = video.canPlayType('application/x-mpegurl');
+        log('canPlayType(x-mpegurl): ' + canPlay);
+
+        // Remove Shaka player if it exists
+        if (player) {
+          try {
+            player.destroy();
+            player = null;
+            log('Shaka player destroyed');
+          } catch(e) {
+            logWarn('Destroy error: ' + e.message);
+          }
+        }
+
+        // Also try to remove UI overlay elements
+        var shakaControls = document.querySelectorAll('.shaka-controls-container, .shaka-spinner-container, .shaka-bottom-controls');
+        shakaControls.forEach(function(el) { el.style.display = 'none'; });
+
+        // Set video.src directly to our M3U8 proxy URL
+        log('Setting video.src = ' + m3u8Url);
+        video.src = m3u8Url;
+
+        // Event listeners
+        var loadStart = false;
+        video.addEventListener('loadstart', function() {
+          log('📡 Event: loadstart');
+        });
+        video.addEventListener('loadedmetadata', function() {
+          log('📡 Event: loadedmetadata');
+          logData('  duration: ' + video.duration);
+          logData('  videoWidth: ' + video.videoWidth);
+          logData('  videoHeight: ' + video.videoHeight);
+        });
+        video.addEventListener('loadeddata', function() {
+          log('✅ Event: loadeddata — stream loaded!');
+        });
+        video.addEventListener('canplay', function() {
+          log('✅ Event: canplay');
+        });
+        video.addEventListener('canplaythrough', function() {
+          log('✅ Event: canplaythrough — should be playable');
+          video.play().then(function() {
+            log('✅ video.play() SUCCESS after canplaythrough');
+            setBtnState('btnNative', 'done');
+          }).catch(function(e) {
+            logError('video.play() failed: ' + e.message);
+            setBtnState('btnNative', 'fail');
+          });
+        });
+        video.addEventListener('play', function() {
+          log('✅ Event: play');
+        });
+        video.addEventListener('playing', function() {
+          log('✅ Event: playing — riproduzione in corso!');
+          setBtnState('btnNative', 'done');
+        });
+        video.addEventListener('waiting', function() {
+          log('⚠️ Event: waiting (buffering)');
+        });
+        video.addEventListener('stalled', function() {
+          log('⚠️ Event: stalled');
+        });
+        video.addEventListener('error', function() {
+          var err = video.error;
+          logError('❌ VIDEO ERROR');
+          logData('  code: ' + (err ? err.code : 'null'));
+          logData('  message: ' + (err ? err.message : 'null'));
+          if (err && err.code === 4) logData('  → MEDIA_ERR_DECODE: stream non decodificabile');
+          if (err && err.code === 3) logData('  → MEDIA_ERR_DECODE: decodifica fallita (codec?)');
+          if (err && err.code === 2) logData('  → MEDIA_ERR_NETWORK: network error');
+          if (err && err.code === 1) logData('  → MEDIA_ERR_ABORTED: aborted');
+          setBtnState('btnNative', 'fail');
+        });
+        video.addEventListener('webkitkeyadded', function(e) {
+          log('📡 keyadded: ' + JSON.stringify(e));
+        });
+        video.addEventListener('webkitkeyerror', function(e) {
+          logError('🔑 keyerror: ' + JSON.stringify(e));
+        });
+        video.addEventListener('webkitneedkey', function(e) {
+          log('🔑 needkey: ' + JSON.stringify(e));
+        });
+
+        // Auto-play attempt
+        setTimeout(function() {
+          if (video.paused && !video.ended && video.readyState >= 2) {
+            log('Tentativo autoplay...');
+            video.play().then(function() {
+              log('✅ video.play() OK');
+            }).catch(function(e) {
+              logWarn('video.play() autoplay: ' + e.message);
+            });
+          }
+        }, 1000);
+
+        // Timeout after 10s
+        setTimeout(function() {
+          log('Native HLS state after 10s:');
+          logData('  readyState: ' + video.readyState);
+          logData('  paused: ' + video.paused);
+          logData('  networkState: ' + video.networkState);
+          logData('  buffered: ' + (video.buffered.length > 0 ? video.buffered.end(0) : 'empty'));
+        }, 10000);
+      };
+
+      // ===== TEST 3: Direct M3U8 fetch (test our proxy) =====
+      window.runDirectFetch = function() {
+        logStep('=== TEST 3: Direct M3U8 fetch ===');
+        log('Fetching M3U8 from: ' + m3u8Url);
+
+        fetch(m3u8Url).then(function(resp) {
+          log('HTTP status: ' + resp.status + ' ' + resp.statusText);
+          logData('Content-Type: ' + (resp.headers.get('Content-Type') || 'unknown'));
+          logData('Content-Length: ' + (resp.headers.get('Content-Length') || 'unknown'));
+          logData('Access-Control-Allow-Origin: ' + (resp.headers.get('Access-Control-Allow-Origin') || 'not set'));
+          return resp.text();
+        }).then(function(text) {
+          m3u8Raw = text;
+          log('✅ M3U8 fetched: ' + text.length + ' chars');
+          var lines = text.split('\n').filter(function(l) { return l.trim(); });
+          logData(lines.length + ' non-empty lines');
+          // Show structure
+          var infs = lines.filter(function(l) { return l.indexOf('#EXT-X-STREAM-INF') >= 0; });
+          logData(infs.length + ' variant(s) found');
+          if (infs.length > 0) {
+            infs.forEach(function(inf, i) {
+              var resMatch = inf.match(/RESOLUTION=(\d+x\d+)/);
+              var bwMatch = inf.match(/BANDWIDTH=(\d+)/);
+              logData('  Variant ' + i + ': ' + (resMatch ? resMatch[1] : 'no res') + ' ' + (bwMatch ? bwMatch[1] + 'bps' : 'no bw'));
+            });
+          }
+          // Show first URL
+          var firstUrl = lines.find(function(l) { return l.startsWith('http'); }) || lines.find(function(l) { return !l.startsWith('#') && l.trim(); });
+          if (firstUrl) logData('First URL: ' + firstUrl);
+          // Show audio/media info
+          var audios = lines.filter(function(l) { return l.indexOf('TYPE=AUDIO') >= 0; });
+          audios.forEach(function(a) { logData('  Audio track: ' + a); });
+        }).catch(function(e) {
+          logError('M3U8 fetch failed: ' + e.message);
+        });
+      };
+
+      // ===== AUTO: Run Shaka test on load =====
+      logStep('Avvio automatico test Shaka tra 500ms...');
+      setTimeout(function() {
+        if (!shakaTested) {
+          window.runShaka();
+        }
+      }, 500);
+
+    })();
+  </script>
+</body>
+</html>

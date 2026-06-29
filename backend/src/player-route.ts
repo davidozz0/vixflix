@@ -10,6 +10,7 @@ import { get } from "./m3u8-cache.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const playerTemplate = readFileSync(join(__dirname, "player-page.html"), "utf-8");
+const playerTestTemplate = readFileSync(join(__dirname, "player-test.html"), "utf-8");
 
 const router = Router();
 
@@ -77,6 +78,28 @@ router.get("/player/stream/:key.m3u8", (req: Request, res: Response) => {
   res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.send(m3u8);
+});
+
+// Test page — hardcoded TMDB ID
+const TEST_TMDB_ID = 414906; // The Batman (2022) - funziona
+router.get("/player/test", async (req: Request, res: Response) => {
+  try {
+    const result = await scrapeStream(TEST_TMDB_ID, "movie");
+    if (!result) {
+      return res.status(500).send("Scraping failed for test ID");
+    }
+
+    const m3u8Url = `/api/player/stream/${result.cacheKey}.m3u8`;
+    const fallbackUrl = `https://vixsrc.to/movie/${TEST_TMDB_ID}?lang=it&autoplay=true`;
+    const html = playerTestTemplate
+      .replace("{{M3U8_URL}}", m3u8Url)
+      .replace("{{FALLBACK_URL}}", fallbackUrl)
+      .replace("{{TMDB_ID}}", String(TEST_TMDB_ID));
+    res.send(html);
+  } catch (err: any) {
+    console.error(`[player-route] Test page error:`, err.message);
+    res.status(500).send("Test page error: " + err.message);
+  }
 });
 
 function sendErrorPage(res: Response, tmdbId: number, type: string, season?: number, episode?: number) {
