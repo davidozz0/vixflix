@@ -5,7 +5,7 @@ import { Router, Request, Response } from "express";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { scrapeStream } from "./scraper.js";
+import { scrapeStream, proxyFetch } from "./scraper.js";
 import { get } from "./m3u8-cache.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,20 +64,47 @@ router.get("/player/tv/:tmdbId/:season/:episode", async (req: Request, res: Resp
   }
 });
 
-// Serve cached M3U8
+// Serve cached M3U8 (gia con URL riscritte dallo scraper)
 router.get("/player/stream/:key.m3u8", (req: Request, res: Response) => {
   const key = req.params.key as string;
-  const m3u8 = get(key);
-  if (!m3u8) {
+  const entry = get(key);
+  if (!entry) {
     console.log(`[player-route] M3U8 cache MISS for key=${key}`);
     return res.status(404).json({ error: "Stream not found or expired" });
   }
-  const len = m3u8.length;
-  const firstLine = m3u8.split("\n").find(l => l.trim()) || "";
+
+  const len = entry.m3u8.length;
+  const firstLine = entry.m3u8.split("\n").find(l => l.trim()) || "";
   console.log(`[player-route] Serving M3U8 key=${key} (${len} chars), first line: ${firstLine.substring(0, 80)}`);
   res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.send(m3u8);
+  res.send(entry.m3u8);
+});
+
+// Proxy: recupera variant playlist/segmenti da vixsrc.to usando sessione scraper
+router.get("/player/fetch/:key", async (req: Request, res: Response) => {
+  const key = req.params.key as string;
+  const entry = get(key);
+  if (!entry || !entry.variantUrl) {
+    console.log(`[player-route] Proxy fetch MISS for key=${key}`);
+    return res.status(404).json({ error: "Stream not found for proxy" });
+  }
+
+  console.log(`[player-route] Proxy fetching: ${entry.variantUrl.slice(0, 80)}`);
+  const result = await proxyFetch(entry.variantUrl);
+  if (!result) {
+    return res.status(502).json({ error: "Proxy fetch failed" });
+  }
+
+  // Determina Content-Type dalla risposta
+  const contentType = (result.headers["content-type"] as string) || "application/octet-stream";
+  const dataLen = result.data ? (result.data.length || result.data.byteLength || 0) : 0;
+  console.log(`[player-route] Proxy response: ${result.status} content-type=${contentType} size=${dataLen}`);
+
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "*");
+  res.setHeader("Content-Type", contentType);
+  res.send(Buffer.from(result.data));
 });
 
 // Test page — hardcoded TMDB ID

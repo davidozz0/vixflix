@@ -2,10 +2,20 @@
 // Porting TypeScript di stremio-vixsrc/extractor.py
 // Scraping vixsrc.to per estrarre stream HLS
 
-import axios, { AxiosInstance } from "axios";
+import axios, { AxiosResponse } from "axios";
+import { wrapper } from "axios-cookiejar-support";
+import { CookieJar } from "tough-cookie";
 import { set } from "./m3u8-cache.js";
 
 const VIXSRC_BASE = "https://vixsrc.to";
+
+// Global axios client con cookie jar persistente
+const jar = new CookieJar();
+const globalClient = wrapper(axios.create({
+  jar,
+  withCredentials: true,
+  timeout: 15000,
+}));
 
 const DEFAULT_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
@@ -40,7 +50,7 @@ function extractJsonBlock(html: string, varName: string): string | null {
   return html.slice(valueStart, end).trim();
 }
 
-function filterM3u8(m3u8Text: string): string {
+function filterM3u8(m3u8Text: string): { content: string; variantUrl: string | null } {
   const lines = m3u8Text.split("\n");
 
   // Trova variante con massima risoluzione
@@ -61,6 +71,7 @@ function filterM3u8(m3u8Text: string): string {
   }
 
   const filtered: string[] = [];
+  let variantUrl: string | null = null;
   let skipUrl = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -86,22 +97,54 @@ function filterM3u8(m3u8Text: string): string {
       continue;
     }
 
-    // Salta URL varianti scartate
+    // Salta URL varianti scartate, salva URL best variant
     if (skipUrl && stripped && !stripped.startsWith("#")) {
       skipUrl = false;
       continue;
     }
 
+    // Linea URL dopo STREAM-INF — salva per proxy (usa line originale, non stripped)
+    if (stripped && !stripped.startsWith("#") && !skipUrl) {
+      if (!variantUrl) variantUrl = line.trim();
+    }
+
     filtered.push(line);
   }
-  return filtered.join("\n");
+  return { content: filtered.join("\n"), variantUrl };
 }
 
-async function warmupSession(client: AxiosInstance): Promise<void> {
+// Mantiene traccia se warmup gia fatto
+let warmedUp = false;
+
+async function warmupSession(): Promise<void> {
+  if (warmedUp) return;
   try {
-    await client.get(VIXSRC_BASE, { timeout: 15000 });
+    await globalClient.get(VIXSRC_BASE, {
+      headers: DEFAULT_HEADERS,
+      timeout: 15000,
+    });
+    warmedUp = true;
+    console.log("[scraper] Session warmed up with cookies");
   } catch {
     // Ignore warmup errors
+  }
+}
+
+// Proxy fetch: usa la stessa sessione (cookie jar) dello scraper
+export async function proxyFetch(url: string): Promise<AxiosResponse<any> | null> {
+  try {
+    return await globalClient.get(url, {
+      headers: {
+        ...DEFAULT_HEADERS,
+        Referer: VIXSRC_BASE + "/",
+        Origin: VIXSRC_BASE,
+      },
+      responseType: "arraybuffer",
+      timeout: 30000,
+    });
+  } catch (err: any) {
+    console.error(`[scraper] proxyFetch failed for ${url.slice(0, 80)}: ${err.message}`);
+    return null;
   }
 }
 
@@ -111,12 +154,7 @@ export async function scrapeStream(
   season?: number,
   episode?: number
 ): Promise<{ cacheKey: string } | null> {
-  const client = axios.create({
-    headers: DEFAULT_HEADERS,
-    timeout: 15000,
-  });
-
-  await warmupSession(client);
+  await warmupSession();
 
   // Step 1: chiama API vixsrc.to
   const apiUrl = type === "tv"
@@ -125,7 +163,7 @@ export async function scrapeStream(
 
   let apiResp;
   try {
-    apiResp = await client.get(apiUrl, {
+    apiResp = await globalClient.get(apiUrl, {
       headers: { Referer: apiUrl },
     });
   } catch (err: any) {
@@ -146,7 +184,7 @@ export async function scrapeStream(
 
   let embedResp;
   try {
-    embedResp = await client.get(embedUrl, {
+    embedResp = await globalClient.get(embedUrl, {
       headers: { ...EMBED_HEADERS, Referer: embedUrl },
     });
   } catch (err: any) {
@@ -215,7 +253,7 @@ export async function scrapeStream(
     // Step 5: scarica M3U8
     let playlistResp;
     try {
-      playlistResp = await client.get(playlistUrl, {
+      playlistResp = await globalClient.get(playlistUrl, {
         headers: { ...PLAYLIST_HEADERS, Referer: embedUrl },
       });
     } catch {
@@ -236,16 +274,22 @@ export async function scrapeStream(
     console.log(`[scraper] === END RAW M3U8 ===`);
 
     // Step 6: filtra M3U8
-    const filteredM3u8 = filterM3u8(m3u8Raw);
+    const { content: filteredM3u8, variantUrl } = filterM3u8(m3u8Raw);
     const filteredLines = filteredM3u8.split("\n").filter((l: string) => l.trim());
     console.log(`[scraper] M3U8 filtered: ${filteredLines.length} lines`);
+    console.log(`[scraper] Variant URL: ${variantUrl ? variantUrl.slice(0, 80) : 'NONE'}`);
     console.log(`[scraper] === FILTERED M3U8 CONTENT ===`);
     console.log(filteredM3u8);
     console.log(`[scraper] === END FILTERED M3U8 ===`);
 
-    // Step 7: cache
+    // Step 7: cache — genera cacheKey, sostituisce variantUrl con proxy URL
     const cacheKey = Math.random().toString(36).slice(2, 14);
-    set(cacheKey, filteredM3u8);
+    const proxyUrl = `/api/player/fetch/${cacheKey}`;
+    const m3u8WithProxy = variantUrl
+      ? filteredM3u8.replace(variantUrl.trim(), proxyUrl)
+      : filteredM3u8;
+    console.log(`[scraper] Variant URL rewritten: ${variantUrl ? variantUrl.slice(0, 50) + '... -> ' + proxyUrl : 'NONE'}`);
+    set(cacheKey, m3u8WithProxy, { variantUrl: variantUrl || undefined, embedUrl });
 
     console.log(`[scraper] Cached M3U8 for ${tmdbId} server ${s.name || "unknown"} key=${cacheKey}`);
     return { cacheKey };
