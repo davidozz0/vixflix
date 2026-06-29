@@ -104,9 +104,6 @@
       // Install UI overlay (controlli, selettore qualita, audio)
       try {
         ui = new shaka.ui.Overlay(player, uiContainer, video);
-        // Abilita selettore qualita e tracce audio
-        var config = { addQualityEncoder: true };
-        ui.configure(config);
         log('Shaka UI Overlay created');
       } catch (e) {
         log('Shaka UI Overlay fallito, uso player base: ' + e.message);
