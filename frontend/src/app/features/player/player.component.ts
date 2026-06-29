@@ -153,7 +153,7 @@ export class PlayerComponent implements OnInit, OnDestroy {
   }
 
   private onMessage = (event: MessageEvent) => {
-    if (event.origin !== 'https://vixsrc.to') return;
+    if (event.origin !== window.location.origin && event.origin !== 'https://vixsrc.to') return;
     const msg = event.data;
     if (!msg || msg.type !== 'PLAYER_EVENT') return;
     const data = msg.data || msg.event || msg;
