@@ -94,7 +94,8 @@
       log('Browser supported');
 
       try {
-        player = new shaka.Player();
+        // Usa costruttore con video element (funzionava senza UI)
+        player = new shaka.Player(video);
         log('Shaka Player instance created');
       } catch (e) {
         showError('Shaka Player instantiation failed: ' + e.message);
@@ -107,8 +108,6 @@
         log('Shaka UI Overlay created');
       } catch (e) {
         log('Shaka UI Overlay fallito, uso player base: ' + e.message);
-        // Fallback: attach player direttamente al video
-        player.attach(video, true);
       }
 
       player.addEventListener('error', function(e) {
