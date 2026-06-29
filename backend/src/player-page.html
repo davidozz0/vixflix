@@ -49,19 +49,7 @@
 
       // Fallback button: naviga parent window a vixsrc.to diretto
       document.getElementById('fallbackBtn').addEventListener('click', function() {
-        var params = new URLSearchParams(window.location.search);
-        var type = params.get('type') || 'movie';
-        var tmdbId = params.get('tmdbId');
-        var season = params.get('season');
-        var episode = params.get('episode');
-        var lang = params.get('lang') || 'it';
-        var vixsrcUrl;
-        if (type === 'tv' && season && episode) {
-          vixsrcUrl = 'https://vixsrc.to/tv/' + tmdbId + '/' + season + '/' + episode + '?lang=' + lang + '&autoplay=true';
-        } else {
-          vixsrcUrl = 'https://vixsrc.to/movie/' + tmdbId + '?lang=' + lang + '&autoplay=true';
-        }
-        parent.location.href = vixsrcUrl;
+        parent.location.href = '{{FALLBACK_URL}}';
       });
 
       if (typeof shaka === 'undefined') {
