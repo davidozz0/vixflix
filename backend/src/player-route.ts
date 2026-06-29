@@ -90,17 +90,27 @@ function rewriteM3u8Urls(m3u8Content: string, variantUrl: string): string {
 
   return m3u8Content.split("\n").map(line => {
     const trimmed = line.trim();
-    // Salta tag e linee vuote
-    if (!trimmed || trimmed.startsWith("#")) return line;
-    // Salta URL gia assolute
-    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return line;
-    // URL relativa → risolvi come assoluta
-    try {
-      const absolute = new URL(trimmed, baseUrl).href;
-      return line.replace(trimmed, absolute);
-    } catch {
-      return line;
+    if (!trimmed) return line;
+
+    // Riscrivi URI="..." dentro tag (KEY, MAP, MEDIA, etc.)
+    let modified = line.replace(/URI="([^"]+)"/g, (match: string, uri: string) => {
+      if (uri.startsWith("http://") || uri.startsWith("https://")) return match;
+      try {
+        return `URI="${new URL(uri, baseUrl).href}"`;
+      } catch {
+        return match;
+      }
+    });
+
+    // Riscrivi URL standalone (linee segmento, non tag)
+    if (!trimmed.startsWith("#") && !trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      try {
+        const absolute = new URL(trimmed, baseUrl).href;
+        modified = modified.replace(trimmed, absolute);
+      } catch { /* skip */ }
     }
+
+    return modified;
   }).join("\n");
 }
 
