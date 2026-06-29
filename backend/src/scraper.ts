@@ -95,16 +95,9 @@ function filterM3u8(m3u8Text: string): string {
     filtered.push(line);
   }
 
-  // Riscrivi URL vixsrc.to attraverso proxy backend (per CORS/headers)
-  const proxyBase = "/api/player/fetch?url=";
-  const rewritten = filtered.map(line => {
-    // Cerca URL vixsrc.to nelle linee (URI="..." o URL diretto)
-    return line.replace(
-      /(https?:\/\/vixsrc\.to[^\s"']*)/g,
-      (match) => proxyBase + encodeURIComponent(match)
-    );
-  });
-  return rewritten.join("\n");
+  // Riscrivi URL vixsrc.to attraverso proxy backend (per CORS/headers su Safari)
+  // Nota: richiede cookies sessione, skip per ora — ripristino URL diretti
+  return filtered.join("\n");
 }
 
 async function warmupSession(client: AxiosInstance): Promise<void> {
