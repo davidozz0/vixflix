@@ -42,7 +42,26 @@ function extractJsonBlock(html: string, varName: string): string | null {
 
 function filterM3u8(m3u8Text: string): string {
   const lines = m3u8Text.split("\n");
+
+  // Trova variante con massima risoluzione
+  let bestIdx = -1;
+  let bestHeight = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith("#EXT-X-STREAM-INF:")) {
+      const m = line.match(/RESOLUTION=(\d+)x(\d+)/);
+      if (m) {
+        const h = parseInt(m[2], 10);
+        if (h > bestHeight) {
+          bestHeight = h;
+          bestIdx = i;
+        }
+      }
+    }
+  }
+
   const filtered: string[] = [];
+  let skipUrl = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const stripped = line.trim();
@@ -53,6 +72,23 @@ function filterM3u8(m3u8Text: string): string {
     // Mantieni solo audio ITA
     if (stripped.startsWith("#EXT-X-MEDIA:TYPE=AUDIO")) {
       if (stripped.includes('LANGUAGE="ita"')) filtered.push(line);
+      continue;
+    }
+
+    // Gestisci varianti video — mantieni solo best (piu alta risoluzione)
+    if (stripped.startsWith("#EXT-X-STREAM-INF:")) {
+      if (i === bestIdx) {
+        filtered.push(stripped);
+        skipUrl = false;
+      } else {
+        skipUrl = true;
+      }
+      continue;
+    }
+
+    // Salta URL varianti scartate
+    if (skipUrl && stripped && !stripped.startsWith("#")) {
+      skipUrl = false;
       continue;
     }
 
