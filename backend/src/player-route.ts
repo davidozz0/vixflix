@@ -5,6 +5,7 @@ import { Router, Request, Response } from "express";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import axios from "axios";
 import { scrapeStream } from "./scraper.js";
 import { get } from "./m3u8-cache.js";
 
@@ -77,6 +78,37 @@ router.get("/player/stream/:key.m3u8", (req: Request, res: Response) => {
   res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.send(m3u8);
+});
+
+// Proxy per sub-playlist vixsrc.to (usa stessi headers dello scraper)
+router.get("/player/fetch", async (req: Request, res: Response) => {
+  const targetUrl = req.query.url as string;
+  if (!targetUrl || !targetUrl.startsWith("https://vixsrc.to/")) {
+    return res.status(400).json({ error: "Invalid URL" });
+  }
+
+  console.log(`[player-route] Proxying: ${targetUrl.substring(0, 100)}...`);
+  try {
+    const resp = await axios.get(targetUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Origin": "https://vixsrc.to",
+        "Referer": "https://vixsrc.to/",
+      },
+      timeout: 15000,
+      responseType: "text",
+    });
+
+    const ctRaw = resp.headers["content-type"];
+    const ct = typeof ctRaw === "string" ? ctRaw : "application/vnd.apple.mpegurl";
+    res.setHeader("Content-Type", ct);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.send(resp.data);
+  } catch (err: any) {
+    console.error(`[player-route] Proxy failed for ${targetUrl.substring(0, 80)}: ${err.message}`);
+    res.status(502).json({ error: "Proxy fetch failed" });
+  }
 });
 
 function sendErrorPage(res: Response, tmdbId: number, type: string, season?: number, episode?: number) {
