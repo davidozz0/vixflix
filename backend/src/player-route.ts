@@ -6,7 +6,7 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
-import { scrapeStream } from "./scraper.js";
+import { scrapeStream, getVixsrcClient } from "./scraper.js";
 import { get } from "./m3u8-cache.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -89,14 +89,8 @@ router.get("/player/fetch", async (req: Request, res: Response) => {
 
   console.log(`[player-route] Proxying: ${targetUrl.substring(0, 100)}...`);
   try {
-    const resp = await axios.get(targetUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
-        "Accept": "*/*",
-        "Origin": "https://vixsrc.to",
-        "Referer": "https://vixsrc.to/",
-      },
-      timeout: 15000,
+    const client = getVixsrcClient();
+    const resp = await client.get(targetUrl, {
       responseType: "text",
     });
 
