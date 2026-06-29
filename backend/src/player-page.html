@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/shaka-player@4/dist/shaka-player.compiled.js">
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; }
+    video { width: 100vw; height: 100vh; object-fit: contain; }
+
+    .error-overlay {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85);
+      color: #fff; font-family: sans-serif;
+      gap: 1rem;
+    }
+    .error-overlay h2 { color: #e50914; margin: 0; }
+    .error-overlay p { color: #aaa; margin: 0; }
+    .error-overlay button {
+      padding: 0.75rem 1.5rem; font-size: 1rem;
+      background: #e50914; color: #fff; border: none;
+      border-radius: 4px; cursor: pointer;
+    }
+    .error-overlay button:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div id="errorOverlay" class="error-overlay" style="display:none;">
+    <h2>Stream non disponibile</h2>
+    <p>Il caricamento dello stream ha fallito.</p>
+    <button id="fallbackBtn">Riprova con player originale</button>
+  </div>
+  <video id="video" autoplay playsinline></video>
+  <script>
+    (function() {
+      const video = document.getElementById('video');
+      const errorOverlay = document.getElementById('errorOverlay');
+
+      function sendEvent(eventName, extra) {
+        parent.postMessage({
+          type: 'PLAYER_EVENT',
+          data: Object.assign({ event: eventName }, extra || {})
+        }, '*');
+      }
+
+      // Fallback button: naviga parent window a vixsrc.to diretto
+      document.getElementById('fallbackBtn').addEventListener('click', function() {
+        var params = new URLSearchParams(window.location.search);
+        var type = params.get('type') || 'movie';
+        var tmdbId = params.get('tmdbId');
+        var season = params.get('season');
+        var episode = params.get('episode');
+        var lang = params.get('lang') || 'it';
+        var vixsrcUrl;
+        if (type === 'tv' && season && episode) {
+          vixsrcUrl = 'https://vixsrc.to/tv/' + tmdbId + '/' + season + '/' + episode + '?lang=' + lang + '&autoplay=true';
+        } else {
+          vixsrcUrl = 'https://vixsrc.to/movie/' + tmdbId + '?lang=' + lang + '&autoplay=true';
+        }
+        parent.location.href = vixsrcUrl;
+      });
+
+      if (typeof shaka === 'undefined') {
+        sendEvent('error', { message: 'Shaka Player library not loaded' });
+        errorOverlay.style.display = 'flex';
+        return;
+      }
+
+      shaka.polyfill.installAll();
+
+      if (!shaka.Player.isBrowserSupported()) {
+        sendEvent('error', { message: 'Browser not supported' });
+        errorOverlay.style.display = 'flex';
+        return;
+      }
+
+      var player = new shaka.Player(video);
+
+      player.addEventListener('error', function(e) {
+        sendEvent('error', { message: e.detail.message });
+        errorOverlay.style.display = 'flex';
+      });
+
+      var m3u8Url = '{{M3U8_URL}}';
+      if (!m3u8Url || m3u8Url === '') {
+        sendEvent('error', { message: 'No stream URL available' });
+        errorOverlay.style.display = 'flex';
+        return;
+      }
+
+      player.load(m3u8Url).then(function() {
+        video.play();
+      }).catch(function(e) {
+        sendEvent('error', { message: e.message });
+        errorOverlay.style.display = 'flex';
+      });
+
+      // Timeupdate ogni 5 secondi
+      setInterval(function() {
+        if (!video.paused) {
+          sendEvent('timeupdate', { currentTime: video.currentTime });
+        }
+      }, 5000);
+
+      video.addEventListener('ended', function() {
+        sendEvent('ended');
+      });
+    })();
+  </script>
+</body>
+</html>
