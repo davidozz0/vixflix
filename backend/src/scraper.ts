@@ -77,10 +77,7 @@ function filterM3u8(m3u8Text: string): string {
     // Gestisci varianti video
     if (stripped.startsWith("#EXT-X-STREAM-INF:")) {
       if (i === bestIdx) {
-        // Rimuovi riferimenti AUDIO= e SUBTITLES= (gruppi rimossi)
-        let cleaned = stripped.replace(/,AUDIO="[^"]*"/g, "");
-        cleaned = cleaned.replace(/,SUBTITLES="[^"]*"/g, "");
-        filtered.push(cleaned);
+        filtered.push(stripped);
         skipUrl = false;
       } else {
         skipUrl = true;
