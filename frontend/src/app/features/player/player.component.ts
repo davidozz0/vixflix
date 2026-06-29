@@ -104,8 +104,8 @@ export class PlayerComponent implements OnInit, OnDestroy {
     }
 
     this.watchlist.getAll().subscribe({
-      next: (list) => { const wl = list.find(e => e.tmdbId === this.tmdbId); this.loadPlayer(wl?.resumeTimeSeconds ?? 0); },
-      error: () => this.loadPlayer(0)
+      next: (list) => { const wl = list.find(e => e.tmdbId === this.tmdbId); this.loadPlayer(); },
+      error: () => this.loadPlayer()
     });
 
 
@@ -130,15 +130,15 @@ export class PlayerComponent implements OnInit, OnDestroy {
   private navigateToEpisode(ep: number) {
     this.episode = ep; this.hasPrev = false; this.hasNext = false;
     this.prevEpisode = undefined; this.nextEpisode = undefined;
-    this.loadPlayer(0);
+    this.loadPlayer();
     this.contentService.seasonEpisodes(this.tmdbId, this.season).subscribe(data => { this.episodes = data.episodes; this.updateNav(); const ep = data.episodes.find((e: Episode) => e.episodeNumber === this.episode); this.episodeName = ep?.name || ''; });
   }
 
-  private loadPlayer(startAt = 0) {
+  private loadPlayer() {
     let url = this.type === 'tv'
-      ? `https://vixsrc.to/tv/${this.tmdbId}/${this.season}/${this.episode}?lang=it&autoplay=true`
-      : `https://vixsrc.to/movie/${this.tmdbId}?lang=it&autoplay=true`;
-    if (startAt > 0) url += `&startAt=${startAt}`;
+      ? `/api/player/tv/${this.tmdbId}/${this.season}/${this.episode}?lang=it&autoplay=true`
+      : `/api/player/movie/${this.tmdbId}?lang=it&autoplay=true`;
+    // Note: startAt not supported in Shaka Player yet (future enhancement)
     console.log('=== VIXFLIX PLAYER URL ===', url);
     this.src = this.sanitizer.bypassSecurityTrustResourceUrl(url);
     this.cdr.detectChanges();
